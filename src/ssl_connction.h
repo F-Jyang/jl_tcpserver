@@ -86,7 +86,7 @@ namespace jl
         void OnHandshake(const std::error_code &ec);
 
     private:
-        std::uint64_t id_;
+        // std::uint64_t id_;
         bool shutdown_;
         asio::io_context &ioct_;
         asio::ssl::stream<net::socket> ssl_socket_;

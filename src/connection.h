@@ -95,7 +95,7 @@ namespace jl
         void OnTimeout(const std::error_code &ec);
 
     private:
-        std::uint64_t id_;
+        // std::uint64_t id_;
         asio::io_context &ioct_;
         asio::io_context::strand io_strand_;
         net::socket socket_;
