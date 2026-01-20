@@ -29,7 +29,7 @@ void jl::Server::Stop()
     bool expect = false;
     this->acceptor_;
     if (!stop_.compare_exchange_strong(expect, true))
-    { // 避免二次Stop导致对io_threads_的重复join（二次join似乎会导致unique_ptr<thread>的崩溃）
+    { 
         return;
     }
     std::cout << "stop" << std::endl;

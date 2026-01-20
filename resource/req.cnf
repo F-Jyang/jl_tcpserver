@@ -1,0 +1,21 @@
+[ req ]
+default_bits        = 2048
+prompt              = no
+default_md          = sha256
+distinguished_name  = dn
+req_extensions      = v3_req
+
+[ dn ]
+C  = CN
+ST = Beijing
+L  = Beijing
+O  = MyOrg
+CN = 127.0.0.1   ; 实际 IP 或主机名
+
+[ v3_req ]
+basicConstraints = CA:FALSE
+keyUsage         = digitalSignature, keyEncipherment
+subjectAltName   = @alt_names
+
+[ alt_names ]
+IP.1 = 127.0.0.1 

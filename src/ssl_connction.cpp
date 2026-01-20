@@ -3,14 +3,14 @@
 
 namespace jl
 {
-	SslConnection::SslConnection(Connection &&conn, asio::ssl::context &ssl_context) : 
-		ioct_(conn.GetIoContext()), 
-		ssl_socket_(std::move(conn).ExtractSocket(), ssl_context),
-		io_strand_(conn.GetIoContext()),
-		timer_(conn.GetIoContext()),
-		shutdown_(true),
-		timeout_(kDefaultTimeout)
-	{}
+	SslConnection::SslConnection(std::shared_ptr<Connection> conn, asio::ssl::context &ssl_context) : ioct_(conn->GetIoContext()),
+																									  ssl_socket_(std::move(*conn).ExtractSocket(), ssl_context),
+																									  io_strand_(conn->GetIoContext()),
+																									  timer_(conn->GetIoContext()),
+																									  shutdown_(true),
+																									  timeout_(kDefaultTimeout)
+	{
+	}
 
 	void SslConnection::SetTimeout(std::size_t secs)
 	{
@@ -25,16 +25,12 @@ namespace jl
 	{
 		shutdown_ = false;
 		auto self = shared_from_this();
-		PostTask([self]() {
-			self->ssl_socket_.async_handshake(ssl::stream_base::server,[self](const std::error_code& ec) {
-				self->OnHandshake(ec);
-				}
-			);
-			}										 
-		);
+		PostTask([self]()
+				 { self->ssl_socket_.async_handshake(ssl::stream_base::server, [self](const std::error_code &ec)
+													 { self->OnHandshake(ec); }); });
 	}
 
-	ssl::stream<net::socket>& SslConnection::GetSocket()
+	ssl::stream<net::socket> &SslConnection::GetSocket()
 	{
 		return ssl_socket_;
 	}
@@ -45,7 +41,7 @@ namespace jl
 		auto self = shared_from_this();
 		PostTask([self, max_bytes]()
 				 { self->ssl_socket_.async_read_some(asio::buffer(self->read_buffer_.WriteStart(), max_bytes), [=](const std::error_code &ec, size_t bytes_transferred)
-												 { self->OnRead(ec, bytes_transferred); }); });
+													 { self->OnRead(ec, bytes_transferred); }); });
 		// io_strand_.post(
 		//     [=]()
 		//     {
@@ -65,7 +61,7 @@ namespace jl
 		auto self = shared_from_this();
 		PostTask([self]()
 				 { self->ssl_socket_.async_write_some(asio::buffer(self->write_buffer_.ReadStart(), self->write_buffer_.Size()), [=](const std::error_code &ec, size_t bytes_transferred)
-												  { self->OnWrite(ec, bytes_transferred); }); });
+													  { self->OnWrite(ec, bytes_transferred); }); });
 		// io_strand_.post(
 		//     [=]()
 		//     {
@@ -82,26 +78,35 @@ namespace jl
 
 	void SslConnection::Close()
 	{
-		if (shutdown_)return;
+		if (shutdown_)
+			return;
 		shutdown_ = true;
 		timer_.cancel();
 		auto self = shared_from_this();
-		PostTask([self]() {
-			self->ssl_socket_.async_shutdown([self](std::error_code ec) {
-				if (ec == asio::error::eof) // 忽略short read 
-				{ 
-					ec.clear();
-				}
-				// 不对是否异常，都关闭连接。先shutdown，再close
-				self->ssl_socket_.lowest_layer().shutdown(net::socket::shutdown_both, ec);
-				self->ssl_socket_.lowest_layer().close();
-				});
+		PostTask(
+			[self]()
+			{
+				self->ssl_socket_.async_shutdown(
+					[self](std::error_code ec)
+					{
+						if (ec == asio::error::eof) // 忽略short read
+						{
+							ec.clear();
+						}
+						// 不对是否异常，都关闭连接。先shutdown，再close
+						self->ssl_socket_.lowest_layer().shutdown(net::socket::shutdown_both, ec);
+						self->ssl_socket_.lowest_layer().close();
+						if(self->conn_close_callback_)
+						{
+							self->conn_close_callback_(self);
+						}
+					});
 			});
 	}
 
 	SslConnection::~SslConnection()
 	{
-		//std::cout << "SslConnection destructor called" << std::endl;
+		// std::cout << "SslConnection destructor called" << std::endl;
 		Close();
 	}
 
@@ -109,8 +114,18 @@ namespace jl
 	{
 		if (ec)
 		{
-			auto remote = ssl_socket_.lowest_layer().remote_endpoint();
-			LOG_ERROR("{}:{} OnRead fail:{}", remote.address().to_string(), remote.port(), ec.message());
+			std::error_code error;
+			auto remote = ssl_socket_.lowest_layer().remote_endpoint(error);
+			if (error)
+			{
+				LOG_ERROR("{}:{} OnRead fail:{}", remote.address().to_string(), remote.port(), error.message());
+				Close();
+				return;
+			}
+			else
+			{
+				LOG_ERROR("OnRead fail:{}", ec.message());
+			}
 			Close();
 		}
 		timer_.cancel();
@@ -126,8 +141,18 @@ namespace jl
 	{
 		if (ec)
 		{
-			auto remote = ssl_socket_.lowest_layer().remote_endpoint();
-			LOG_ERROR("{}:{} OnWrite fail:{}", remote.address().to_string(), remote.port(), ec.message());
+			std::error_code error;
+			auto remote = ssl_socket_.lowest_layer().remote_endpoint(error);
+			if (error)
+			{
+				LOG_ERROR("{}:{} OnWrite fail:{}", remote.address().to_string(), remote.port(), error.message());
+				Close();
+				return;
+			}
+			else
+			{
+				LOG_ERROR("OnWrite fail:{}", ec.message());
+			}
 			Close();
 		}
 		timer_.cancel();
@@ -162,13 +187,23 @@ namespace jl
 		}
 	}
 
-	void SslConnection::OnHandshake(const std::error_code& ec)
+	void SslConnection::OnHandshake(const std::error_code &ec)
 	{
-		if (ec) {
-			std::string remote_ip = ssl_socket_.lowest_layer().remote_endpoint().address().to_string();
-			unsigned short remote_port = ssl_socket_.lowest_layer().remote_endpoint().port();
-			LOG_ERROR("{}:{} handshake fail: {}",remote_ip,remote_port, ec.message());
-			this->Close();
+		if (ec)
+		{
+			std::error_code error;
+			auto remote = ssl_socket_.lowest_layer().remote_endpoint(error);
+			if (error)
+			{
+				LOG_ERROR("{}:{} OnHandshake fail:{}", remote.address().to_string(), remote.port(), error.message());
+				Close();
+				return;
+			}
+			else
+			{
+				LOG_ERROR("OnHandshake fail:{}", ec.message());
+			}
+			Close();
 		}
 		if (handshake_callback_)
 		{
@@ -176,8 +211,8 @@ namespace jl
 		}
 	}
 
-    asio::io_context &SslConnection::GetIoContext()
-    {
+	asio::io_context &SslConnection::GetIoContext()
+	{
 		return ioct_;
 	}
 }

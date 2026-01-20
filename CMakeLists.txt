@@ -64,6 +64,27 @@ endif()
 
 add_library(${PROJECT_NAME}::${LibraryName} ALIAS ${LibraryName}) # 创建别名
 
+# 添加复制指令。该指令的意义: cmake -E <command> <args>，就能直接执行一些常见操作（复制、删除、创建目录、计算哈希、查看环境变量等）
+if(WIN32)
+add_custom_target(copy_resource # ALL，好像ALL不加也行？？？
+    COMMAND ${CMAKE_COMMAND} -E copy_directory # CMAKE_COMMAND，CMake 可执行文件本身的绝对路径
+            "${CMAKE_CURRENT_SOURCE_DIR}/resource"
+            "${CMAKE_CURRENT_BINARY_DIR}/resource"
+    COMMENT "Copying resource directory..."
+    VERBATIM
+)
+else()
+add_custom_target(copy_resource # ALL，好像ALL不加也行？？？
+    COMMAND ${CMAKE_COMMAND} -E copy_directory # CMAKE_COMMAND，CMake 可执行文件本身的绝对路径
+            "${CMAKE_CURRENT_SOURCE_DIR}/resource"
+            "${CMAKE_CURRENT_BINARY_DIR}/bin/resource"
+    COMMENT "Copying resource directory..."
+    VERBATIM
+)
+endif()
+# 主程序依赖资源，确保资源在主程序链接前复制
+add_dependencies(${LibraryName} copy_resource)
+
 if(BUILD_TESTS)
     add_subdirectory("./test")
 endif()

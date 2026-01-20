@@ -7,6 +7,11 @@
 #include <spdlog/async.h>
 #include <spdlog/sinks/stdout_color_sinks.h>
 
+#define LOG_DEBUG(FORMAT, ...) jl::Logger::GetInstance().LogDebug(fmt::format(FORMAT, __VA_ARGS__))
+#define LOG_INFO(FORMAT, ...) jl::Logger::GetInstance().LogInfo(fmt::format(FORMAT, __VA_ARGS__))
+#define LOG_WARN(FORMAT, ...) jl::Logger::GetInstance().LogWarn(fmt::format(FORMAT, __VA_ARGS__))
+#define LOG_ERROR(FORMAT, ...) jl::Logger::GetInstance().LogError(fmt::format(FORMAT, __VA_ARGS__))
+
 namespace jl {
     /// <summary>
     /// 设置单个文件最大size
@@ -39,10 +44,6 @@ namespace jl {
     /// <param name="thread_count">线程数量</param>
     void SetLogThreadPool(int q_size, int thread_count);
 
-#define LOG_DEBUG(FORMAT, ...) Logger::GetInstance().LogDebug(fmt::format(FORMAT, __VA_ARGS__))
-#define LOG_INFO(FORMAT, ...) Logger::GetInstance().LogInfo(fmt::format(FORMAT, __VA_ARGS__))
-#define LOG_WARN(FORMAT, ...) Logger::GetInstance().LogWarn(fmt::format(FORMAT, __VA_ARGS__))
-#define LOG_ERROR(FORMAT, ...) Logger::GetInstance().LogError(fmt::format(FORMAT, __VA_ARGS__))
 
     class BaseLoggerImpl
     {

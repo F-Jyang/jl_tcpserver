@@ -8,7 +8,7 @@ namespace jl
     class SslConnection : public std::enable_shared_from_this<SslConnection>
     {
     public:
-        SslConnection(Connection &&connection, asio::ssl::context &ssl_context);
+        SslConnection(std::shared_ptr<Connection> conn, asio::ssl::context &ssl_context);
         /// @brief 设置连接超时时间
         /// @param secs 超时时间，单位为秒，默认值为 kDefaultTimeout
         void SetTimeout(std::size_t secs = kDefaultTimeout);
@@ -68,6 +68,8 @@ namespace jl
         /// @param a 分配器实例
         template <typename Function, typename Allocator = std::allocator<void>>
         void PostTask(Function &&f, const Allocator &a = std::allocator<void>{}) const;
+
+        // TODO: 调用remote_endpoint需要处理异常
 
         /// @brief 处理读取完成事件
         /// @param ec 错误码
