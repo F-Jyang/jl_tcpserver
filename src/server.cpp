@@ -1,9 +1,11 @@
 #include "server.h"
+#include <logger.h>
 
-jl::Server::Server(asio::io_context &ioct, const std::string &ip, unsigned short port) : ioct_(ioct),
-                                                                                         acceptor_(std::make_shared<Acceptor>(ioct, ip, port)),
-                                                                                         signals_(ioct),
-                                                                                         stop_(true)
+jl::Server::Server(asio::io_context& ioct, const std::string& ip, unsigned short port) :
+    ioct_(ioct),
+    acceptor_(std::make_shared<Acceptor>(ioct, ip, port)),
+    signals_(ioct),
+    stop_(true)
 {
 }
 
@@ -21,30 +23,29 @@ void jl::Server::Start(std::size_t thread_cnt)
             }));
         --thread_cnt;
     }
-    ioct_.run();
+    while(!stop_) { // 等待停止
+        std::this_thread::sleep_for(std::chrono::milliseconds(200));
+    }
 }
 
 void jl::Server::Stop()
 {
-    bool expect = false;
-    this->acceptor_;
-    if (!stop_.compare_exchange_strong(expect, true))
-    { 
-        return;
-    }
-    std::cout << "stop" << std::endl;
+    LOG_WARN("Server stop.");
     ioct_.stop();
-    std::cout << io_threads_.size() << std::endl;
     for (std::size_t i = 0; i < io_threads_.size(); ++i)
     {
-        std::cout << i << std::endl;
         if (io_threads_[i] && io_threads_[i]->joinable())
         {
             io_threads_[i]->join();
         }
     }
     io_threads_.clear();
-    std::cout << "stop finish" << std::endl;
+    LOG_WARN("Server stop finish.");
+}
+
+asio::io_context& jl::Server::GetIoContext()
+{
+    return ioct_;
 }
 
 void jl::Server::SetConnEstablishCallback(const ConnEstablishCallback &callback)
@@ -60,6 +61,7 @@ jl::Server::~Server()
 void jl::Server::DoAwaitStop()
 {
     signals_.add(SIGINT);
+    signals_.add(SIGTERM);
     WaitSignal();
 }
 
@@ -70,8 +72,8 @@ void jl::Server::WaitSignal()
         {
             if (ec)
                 return;
-            std::cout << "caught " << sig << ", shutting down…\n";
-            ioct_.stop();
+            LOG_WARN("Caught signal:{}", sig);
+            stop_ = true;
             // this->Stop(); // bug: 这里调用Stop，join的时候可能会在非主线程调用，导致崩溃
             // WaitSignal();  // 如果想继续捕获，再发起一次等待
         });

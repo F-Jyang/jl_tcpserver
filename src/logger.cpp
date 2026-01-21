@@ -15,7 +15,7 @@ namespace jl {
     std::string kDefaultLogFile = fmt::format("{}/{}", "./logs", "jl_tcpserver.txt");
     constexpr const char* kAsyncLoggerName = "async_jl_tcpserver_logger";
     constexpr const char* kSyncLoggerName = "sync_jl_tcpserver_logger";
-    constexpr const char* LOG_FORMAT = "%^[%Y-%m-%d %H:%M:%S.%e][thread %t][%s:%#][%l]: %v%$"; // %^...%$ 打印颜色
+    constexpr const char* LOG_FORMAT = "%^[%Y-%m-%d %H:%M:%S.%e][thread %t][%l]: %v%$"; // %^...%$ 打印颜色
 
     void SetLogFileMaxSize(int size) {
         kLogMaxSize = size;

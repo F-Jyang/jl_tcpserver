@@ -84,6 +84,11 @@ std::string jl::Buffer::ReadAsString(std::size_t n)
     return result;
 }
 
+std::string jl::Buffer::ReadAll()
+{
+    return ReadAsString(Size());
+}
+
 void jl::Buffer::Clear()
 {
     start_ = 0;

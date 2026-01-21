@@ -23,6 +23,8 @@ namespace jl
         /// @brief 停止服务器
         void Stop();
 
+        asio::io_context& GetIoContext();
+
         /// @brief 设置连接建立回调函数
         /// @param callback 连接建立回调函数
         void SetConnEstablishCallback(const ConnEstablishCallback &callback);

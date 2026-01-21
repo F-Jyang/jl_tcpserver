@@ -79,6 +79,11 @@ namespace jl
         /// @return
         std::string ReadAsString(std::size_t n);
 
+        /// @brief 读取所有字节并返回string
+        /// @param n
+        /// @return
+        std::string ReadAll();
+
         /// @brief 清空缓冲区
         void Clear();
 

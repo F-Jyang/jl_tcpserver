@@ -5,25 +5,28 @@
 
 namespace jl
 {
+    namespace ssl = asio::ssl;
 
-    class Connection;
+    using net = asio::ip::tcp;
+    using Socket = net::socket;
+
+    class BaseConnection;
     class SslConnection;
     class Buffer;
     class Server;
       
-    using net = asio::ip::tcp;
-    namespace ssl = asio::ssl;
 
-    using ConnEstablishCallback = std::function<void(const std::shared_ptr<Connection> &)>; // 新连接回调函数
-    using MessageCommingCallback = std::function<void(const std::shared_ptr<Connection> &, std::size_t, jl::Buffer &)>;
-    using WriteFinishCallback = std::function<void(const std::shared_ptr<Connection> &, std::size_t)>;
-    using ConnCloseCallback = std::function<void(const std::shared_ptr<Connection> &)>;
-    using ConnTimeoutCallback = std::function<void(const std::shared_ptr<Connection> &)>;
+    using ConnEstablishCallback = std::function<void(Socket&&)>; // 新连接回调函数
+    using MessageCommingCallback = std::function<void(const std::shared_ptr<BaseConnection> &, jl::Buffer &, std::size_t)>;
+    using WriteFinishCallback = std::function<void(const std::shared_ptr<BaseConnection> &, std::size_t)>;
+    using ConnCloseCallback = std::function<void(const std::shared_ptr<BaseConnection> &)>;
+    using ConnTimeoutCallback = std::function<void(const std::shared_ptr<BaseConnection> &)>;
+    using HandshakeCallback = std::function<void(const std::shared_ptr<BaseConnection> &)>;
 
-    using SslHandshakeCallback = std::function<void(const std::shared_ptr<SslConnection> &)>;
-    using SslMessageCommingCallback = std::function<void(const std::shared_ptr<SslConnection> &, std::size_t, jl::Buffer &)>;
-    using SslWriteFinishCallback = std::function<void(const std::shared_ptr<SslConnection> &, std::size_t)>;
-    using SslConnCloseCallback = std::function<void(const std::shared_ptr<SslConnection> &)>;
-    using SslConnTimeoutCallback = std::function<void(const std::shared_ptr<SslConnection> &)>;
+    // using SslHandshakeCallback = std::function<void(const std::shared_ptr<SslConnection> &)>;
+    // using SslMessageCommingCallback = std::function<void(const std::shared_ptr<SslConnection> &, std::size_t, jl::Buffer &)>;
+    // using SslWriteFinishCallback = std::function<void(const std::shared_ptr<SslConnection> &, std::size_t)>;
+    // using SslConnCloseCallback = std::function<void(const std::shared_ptr<SslConnection> &)>;
+    // using SslConnTimeoutCallback = std::function<void(const std::shared_ptr<SslConnection> &)>;
 
 }

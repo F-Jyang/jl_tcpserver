@@ -1,4 +1,5 @@
 #include "acceptor.h"
+#include <logger.h>
 #include <string>
 
 jl::Acceptor::Acceptor(asio::io_context &ioct, const std::string &ip, unsigned short port) : ioct_(ioct),
@@ -10,16 +11,19 @@ void jl::Acceptor::OnAccept(const std::error_code &ec, net::socket socket)
 {
     if (ec)
     { // 如果错误，直接返回
+        assert(false);
+        LOG_ERROR("OnAccept fail:{}", ec.message());
         return;
     }
-    std::shared_ptr<Connection> conn = std::make_shared<Connection>(ioct_, std::move(socket));
     if (conn_establish_callback_)
     {
-        conn_establish_callback_(conn);
+        conn_establish_callback_(std::move(socket));
     }
     else
     {
-        conn->Close();
+        std::error_code ignore_ec;
+        socket.shutdown(asio::socket_base::shutdown_both, ignore_ec);
+        socket.close(ignore_ec);
     }
     DoAccept(); // 继续接受下一个连接
 }
