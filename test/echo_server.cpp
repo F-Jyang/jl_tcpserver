@@ -8,7 +8,7 @@ public:
         tcp_server_.DoAwaitStop();
         tcp_server_.SetConnEstablishCallback([=](jl::Socket&& socket){
             auto conn = std::make_shared<jl::Connection>(tcp_server_.GetIoContext(), std::move(socket));
-            conn->SetTimeout(3);
+            //conn->SetTimeout(3);
             conn->SetConnTimeoutCallback([](const std::shared_ptr<jl::BaseConnection>& conn) {
                 LOG_DEBUG("TimeoutCallback");
                 conn->Close();
