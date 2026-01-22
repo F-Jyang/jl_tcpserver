@@ -21,6 +21,8 @@ namespace jl
          /// @param max_bytes 最大读取字节数，默认值为 kDefaultMaxReadBytes
         virtual void Read(std::size_t max_bytes = kDefaultMaxReadBytes) = 0;
 
+        virtual void ReadUntil(const std::string& sep, std::size_t max_bytes = kDefaultMaxReadBytes) = 0;
+
         /// @brief 异步写入数据
         /// @param data 数据指针
         /// @param n 数据字节数

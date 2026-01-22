@@ -1,4 +1,7 @@
 ### TODO:
+#### Connection需要使用template class、type traits等在封装一层，除了Close、Start外的其它函数可以复用
+#### 使用Read(n) 实现ReadUntil
+#### bug:server退出时需要所有的Connection->Close()
 #### server添加asio::resolver，支持域名解析
 #### 添加唯一id生成函数，雪花算法
 #### ssl::context设置证书等函数实现、ssl连接测试

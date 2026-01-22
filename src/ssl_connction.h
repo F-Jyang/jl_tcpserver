@@ -21,6 +21,11 @@ namespace jl
         /// @param max_bytes 最大读取字节数，默认值为 kDefaultMaxReadBytes
         void Read(std::size_t max_bytes = kDefaultMaxReadBytes) override;
 
+		/// @brief 异步读取数据直到读到sep，或读取到最大字节max_bytes
+        /// @param sep 分隔符
+		/// @param max_bytes 最大读取字节数，默认值为 kDefaultMaxReadBytes
+        void ReadUntil(const std::string& sep, std::size_t max_bytes = kDefaultMaxReadBytes) override;
+
         /// @brief 异步写入数据
         /// @param data 数据指针
         /// @param n 数据字节数

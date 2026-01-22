@@ -22,8 +22,8 @@ public:
                 conn->Read();
             });
             ssl_connction->SetMessageCommingCallback([](const std::shared_ptr<jl::BaseConnection>& conn, jl::Buffer& buffer, std::size_t read_bytes){
-                std::string data = buffer.ReadAsString(buffer.Size());
-                conn->Write(data);
+                std::string data = buffer.ReadAll();
+                conn->Write(data.data(), data.size());
             });
             ssl_connction->SetWriteFinishCallback([](const std::shared_ptr<jl::BaseConnection>& conn,std::size_t read_bytes){
                 conn->Read();

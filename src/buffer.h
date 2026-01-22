@@ -93,15 +93,15 @@ namespace jl
 
         /// @brief 获取缓冲区数据
         /// @return 缓冲区的首地址指针
-        const char *Data() const;
+        //std::vector<char>& Data();
 
         /// @brief 获取可写缓冲区指针
         /// @return
-        char *WriteStart();
+        char *End();
 
         /// @brief 获取可读缓冲区指针
         /// @return
-        const char *ReadStart() const;
+        const char *Start() const;
 
         /// @brief 获取缓冲区剩余可用大小
         /// @return
@@ -155,7 +155,7 @@ namespace jl
         n = std::min(max_num, n);
         result.resize(n);
         char *dest = (char *)&result[0];
-        std::copy(ReadStart(), ReadStart() + n * sizeof(T), dest);
+        std::copy(Start(), Start() + n * sizeof(T), dest);
         start_ += n * sizeof(T);
         return result;
     }

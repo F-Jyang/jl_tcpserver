@@ -12,7 +12,7 @@ namespace jl
 
     void Connection::Start()
     {
-        this->Read();
+        //this->Read();
     }
 
     net::socket Connection::ExtractSocket() &&
@@ -27,14 +27,38 @@ namespace jl
         PostTask(
             [=]()
             { 
-                this->socket_.async_read_some(asio::buffer(this->read_buffer_.WriteStart(), max_bytes),
+                this->socket_.async_read_some(asio::buffer(this->read_buffer_.End(), max_bytes),
                     [=](const std::error_code& ec, size_t bytes_transferred)
                     {
+                        if (!ec) {
+                            this->read_buffer_.AppendEnd(bytes_transferred);
+                        }
                         self->OnRead(ec, bytes_transferred);
                     }
                 );
             }
         );
+    }
+
+    void Connection::ReadUntil(const std::string& sep, std::size_t max_bytes)
+    {
+        assert(false);
+        read_buffer_.EnableWrite(max_bytes);
+		auto self = shared_from_this();
+		// 使用时需要将buffer的start移动到最前面，要考虑自己封装一个read_until了
+  //      PostTask(
+		//	[=]()
+		//	{
+  //      
+  //              asio::async_read_until(this->socket_, asio::dynamic_buffer(this->read_buffer_.buffer_, max_bytes), sep,
+  //                  [=](const std::error_code& ec, size_t bytes_transferred)
+  //                  {
+  //                      //LOG_INFO("sep: {}", sep);
+  //                      self->OnRead(ec, bytes_transferred);
+  //                  }
+  //              );
+		//	}
+		//);
     }
 
     void Connection::Write(const void *data, std::size_t n)
@@ -48,9 +72,12 @@ namespace jl
         PostTask(
             [=]()
             {
-                this->socket_.async_write_some(asio::buffer(this->write_buffer_.ReadStart(), this->write_buffer_.Size()),
+                this->socket_.async_write_some(asio::buffer(this->write_buffer_.Start(), this->write_buffer_.Size()),
                     [=](const std::error_code& ec, size_t bytes_transferred)
                     {
+                        if (!ec) {
+                            write_buffer_.AppendStart(bytes_transferred);
+                        }
                         self->OnWrite(ec, bytes_transferred);
                     }
                 );
@@ -112,7 +139,6 @@ namespace jl
         if (!ec)
         {
             timer_.cancel();
-            write_buffer_.AppendStart(bytes_transferred);
             if (write_finish_callback_)
             {
                 write_finish_callback_(shared_from_this(), bytes_transferred);

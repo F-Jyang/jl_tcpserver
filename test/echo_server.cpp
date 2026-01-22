@@ -16,7 +16,7 @@ public:
             conn->SetMessageCommingCallback([](const std::shared_ptr<jl::BaseConnection>& conn, jl::Buffer& buffer, std::size_t read_bytes) {
                 std::string data = buffer.ReadAll();
                 LOG_DEBUG("MessageCommingCallback: {}", data);
-                conn->Write(data);
+                conn->Write(&data[0], data.size());
                 });
             conn->SetWriteFinishCallback([](const std::shared_ptr<jl::BaseConnection>& conn, std::size_t read_bytes) {
                 LOG_DEBUG("WriteFinishCallback");
@@ -25,7 +25,7 @@ public:
             conn->SetConnCloseCallback([](const std::shared_ptr<jl::BaseConnection>& conn) {
                 LOG_DEBUG("CloseCallback");
                 });
-            conn->Start();
+            conn->Read();
 
         });
 

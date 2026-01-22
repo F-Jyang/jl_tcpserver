@@ -79,7 +79,7 @@ std::string jl::Buffer::ReadAsString(std::size_t n)
     n = std::min(n, Size());
     if (n <= 0)
         return "";
-    std::string result(ReadStart(), ReadStart() + n);
+    std::string result(Start(), Start() + n);
     start_ += n;
     return result;
 }
@@ -101,21 +101,18 @@ size_t jl::Buffer::Size() const
     return end_ - start_;
 }
 
-const char *jl::Buffer::Data() const
-{
-    assert(end_ >= start_ && end_ < buffer_.size());
-    if (end_ == start_)
-        return nullptr;
-    return &buffer_[start_];
-}
+//std::vector<char>& jl::Buffer::Data()
+//{
+//    return buffer_;
+//}
 
-char *jl::Buffer::WriteStart()
+char *jl::Buffer::End()
 {
     assert(end_ >= start_ && end_ < buffer_.size());
     return &buffer_[end_];
 }
 
-const char *jl::Buffer::ReadStart() const
+const char *jl::Buffer::Start() const
 {
     assert(end_ >= start_ && end_ < buffer_.size());
     return &buffer_[start_];
@@ -145,6 +142,6 @@ void jl::Buffer::Append(const void *data, std::size_t len)
 {
     EnableWrite(len);
     const char *data_ptr = static_cast<const char *>(data);
-    std::copy(data_ptr, data_ptr + len, WriteStart());
+    std::copy(data_ptr, data_ptr + len, End());
     end_ += len;
 }

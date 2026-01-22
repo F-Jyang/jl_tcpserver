@@ -39,6 +39,9 @@ void jl::Server::Stop()
             io_threads_[i]->join();
         }
     }
+    for (auto& conn : conn_set_) {
+        conn->Close();
+    }
     io_threads_.clear();
     LOG_WARN("Server stop finish.");
 }
