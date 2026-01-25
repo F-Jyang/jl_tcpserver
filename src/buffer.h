@@ -14,13 +14,17 @@ constexpr std::size_t kDefaultCapacity = 2048;
 
 namespace jl
 {
-    class Connection;
-    class SslConnection;
+    // 类型定义，兼容asio的buffer v2概念，用于 asio_read_until
+    using const_buffers_type = std::vector<asio::const_buffer>;
+    using mutable_buffers_type = std::vector<asio::mutable_buffer>;
+    
+    //class Connection;
+    //class SslConnection;
     
     class Buffer
     {
-        friend class Connection;
-        friend class SslConnection;
+        //friend class Connection;
+        //friend class SslConnection;
     public:
         Buffer(std::size_t capacity = kDefaultCapacity);
 
@@ -119,6 +123,50 @@ namespace jl
         /// @param len
         void EnableWrite(std::size_t len);
 
+		/// @brief end+=len。更新end指针，用于asio::read/asio::write的回调函数中手动更新指针
+	    /// @param len
+		void AppendEnd(std::size_t len);
+
+		/// @brief start+=len。更新start指针，用于asio::read/asio::write的回调函数中手动更新指针
+		/// @param len
+		void AppendStart(std::size_t len);
+
+
+
+		
+        asio::const_buffer jl::Buffer::data() const
+        {
+            return asio::const_buffer(Start(), size()) ;
+        }
+
+        void jl::Buffer::consume(std::size_t len)
+        {
+            assert(end_ >= start_ && end_ < buffer_.size());
+            len = std::min(len, end_ - start_);
+            start_ += len;
+        }
+
+        void jl::Buffer::commit(std::size_t len)
+        {
+            end_ += len;
+        }
+
+        std::size_t jl::Buffer::size() const
+        {
+            return end_ - start_;
+        }
+
+        std::size_t jl::Buffer::max_size() const
+        {
+            return buffer_.size();
+        }
+
+        asio::mutable_buffer jl::Buffer::prepare(std::size_t len)
+        {
+            EnableWrite(len);
+            return asio::mutable_buffer(End(), len);
+        }
+
     private:
         /// @brief 扩展缓冲区容量
         /// @param len 扩展长度
@@ -126,14 +174,6 @@ namespace jl
 
         /// @brief 移动数据到缓冲区开头
         void MoveData();
-
-        /// @brief end+=len。更新end指针，用于asio::read/asio::write的回调函数中手动更新指针
-        /// @param len
-        void AppendEnd(std::size_t len);
-
-        /// @brief start+=len。更新start指针，用于asio::read/asio::write的回调函数中手动更新指针
-        /// @param len
-        void AppendStart(std::size_t len);
 
     private:
         std::size_t start_, end_;

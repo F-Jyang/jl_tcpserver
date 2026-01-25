@@ -2,8 +2,10 @@
 #include <iostream>
 #include <logger.h>
 
+    #if 0
 namespace jl
 {
+
     Connection::Connection(asio::io_context& ioct, net::socket&& socket) :
         BaseConnection(ioct),
         socket_(std::move(socket))
@@ -178,4 +180,6 @@ namespace jl
     {
         return;
     }
+
 }
+    #endif

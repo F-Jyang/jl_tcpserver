@@ -7,9 +7,9 @@
 #pragma once
 #include <base_connection.h>
 
+    #if 0
 namespace jl
 {
-
     class Connection : public BaseConnection
     {
     public:
@@ -69,3 +69,4 @@ namespace jl
         net::socket socket_;
     };
 }
+    #endif

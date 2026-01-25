@@ -1,6 +1,6 @@
 #include <server.h>
 #include <logger.h>
-#include <ssl_connction.h>
+#include <connection_template.hpp>
 #include <global.h>
 
 std::atomic<int> gConnCnt = 0;
@@ -13,24 +13,26 @@ public:
         tcp_server_.SetConnEstablishCallback([=](jl::Socket&& socket) {
             // conn->SetTimeout(2);
             gConnCnt.fetch_add(1,std::memory_order_relaxed);
-            auto ssl_connction = std::make_shared<jl::SslConnection>(tcp_server_.GetIoContext(), jl::GetSslContext(), std::move(socket));
+            //jl::ssl::stream<jl::net::socket> stream(std::move(socket), jl::GetSslContext());
+            auto ssl_connction = std::make_shared<jl::SSLConnection>(tcp_server_.GetIoContext(), std::move(socket));
             ssl_connction->SetConnTimeoutCallback([](const std::shared_ptr<jl::BaseConnection>& conn){
                 conn->Close();
             });
-            ssl_connction->Start();
             ssl_connction->SetHandshakeCallback([](const std::shared_ptr<jl::BaseConnection>& conn){
                 conn->Read();
             });
-            ssl_connction->SetMessageCommingCallback([](const std::shared_ptr<jl::BaseConnection>& conn, jl::Buffer& buffer, std::size_t read_bytes){
-                std::string data = buffer.ReadAll();
-                conn->Write(data.data(), data.size());
-            });
+            ssl_connction->SetMessageCommingCallback([](const std::shared_ptr<jl::BaseConnection>& conn, jl::ConstBuffer& buffer) {
+				std::string data(static_cast<const char*>(buffer.data()), buffer.size());
+				LOG_DEBUG("MessageCommingCallback: {}", data);
+				conn->Write(&data[0], data.size());
+				});
             ssl_connction->SetWriteFinishCallback([](const std::shared_ptr<jl::BaseConnection>& conn,std::size_t read_bytes){
                 conn->Read();
             });
             ssl_connction->SetConnCloseCallback([](const std::shared_ptr<jl::BaseConnection>& conn){
                 LOG_INFO("conn close");
             });
+            ssl_connction->Start();
         });
 
     }

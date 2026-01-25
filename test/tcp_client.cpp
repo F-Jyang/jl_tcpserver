@@ -79,6 +79,7 @@ private:
 
             if (!message_.empty())
             {
+                //while (1) {
                 // 发送消息
                 asio::async_write(socket_, asio::buffer(message_),
                                   asio::bind_executor(strand_,
@@ -86,6 +87,9 @@ private:
                                                       {
                                                           self->OnWrite(ec);
                                                       }));
+                //std::this_thread::sleep_for(std::chrono::seconds(1));
+                //}
+                
             }
             else
             {
@@ -105,6 +109,13 @@ private:
         if (!ec)
         {
             std::cout << "  Message sent (" << message_.size() << " bytes)\n";
+            //std::this_thread::sleep_for(std::chrono::seconds(1));
+            //asio::async_write(socket_, asio::buffer(message_),
+            //    asio::bind_executor(strand_,
+            //        [self = shared_from_this()](std::error_code ec, size_t)
+            //        {
+            //            self->OnWrite(ec);
+            //        }));
             DoRead();
         }
         else

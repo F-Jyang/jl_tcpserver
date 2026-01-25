@@ -1,5 +1,6 @@
 #include <server.h>
 #include <logger.h>
+#include <connection_template.hpp>
 
 class EchoServer
 {
@@ -13,8 +14,8 @@ public:
                 LOG_DEBUG("TimeoutCallback");
                 conn->Close();
                 });
-            conn->SetMessageCommingCallback([](const std::shared_ptr<jl::BaseConnection>& conn, jl::Buffer& buffer, std::size_t read_bytes) {
-                std::string data = buffer.ReadAll();
+            conn->SetMessageCommingCallback([](const std::shared_ptr<jl::BaseConnection>& conn, jl::ConstBuffer& buffer) {
+                std::string data(static_cast<const char*>(buffer.data()),buffer.size());
                 LOG_DEBUG("MessageCommingCallback: {}", data);
                 conn->Write(&data[0], data.size());
                 });
@@ -25,7 +26,8 @@ public:
             conn->SetConnCloseCallback([](const std::shared_ptr<jl::BaseConnection>& conn) {
                 LOG_DEBUG("CloseCallback");
                 });
-            conn->Read();
+            conn->ReadUntil("world");
+            conn->Start();
 
         });
 
@@ -37,10 +39,21 @@ private:
     jl::Server tcp_server_;
 };
 
+//void data(const void* data, std::size_t size) {
+//    asio::streambuf buf;
+//    std::ostream os(&buf);
+//    os.write(static_cast<const char*>(data), size);
+//    
+//    asio::const_buffer input = buf.data();
+//    std::string s(static_cast<const char*>(input.data()), input.size());
+//    std::cout << s << std::endl;
+//}
+
 int main(int argc, char const *argv[])
 {
     asio::io_context ioct;
     EchoServer server(ioct, "127.0.0.1", 12345);
+    //data("hello world", 11);
     server.Start();
     return 0;
 }

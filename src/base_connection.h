@@ -1,18 +1,45 @@
-/// @brief 基础连接类
+/// @brief 基础连接类，定义了连接的基本行为
+/// @note 原本想使用双strand分别封装read、write，都是发现很复杂，
+///       使用asio::bind_executor传入的strand可能会跟socket本身的executor冲突，导致回调不会执行的bug
+//        同时双strand的性能似乎也没有很好，最后还是使用单strand  
+
+
 
 #pragma once
 #include <define.h>
 #include <buffer.h>
+#include <queue>
 
 namespace jl
 {
     constexpr std::size_t kDefaultMaxReadBytes = 2048;
     constexpr std::size_t kDefaultTimeout = 5 * 60;
+    constexpr std::size_t kDefaultBufferMaxSize = 1024 * 4;
+
+    enum class ConnectionState {
+        kActived = 1,
+        kClosing,
+        kClosed,
+    };
+
+    enum class Option {
+        RD_ONLY = 1,
+        WR_ONLY = 1 << 1,
+        RDWR = RD_ONLY + WR_ONLY,
+    };
+    
+    inline bool operator&(Option opt1, Option opt2) {
+        return static_cast<int>(opt1) & static_cast<int>(opt2);
+    }
+
+    inline Option operator|(Option opt1, Option opt2) {
+        return static_cast<Option>(static_cast<int>(opt1) | static_cast<int>(opt2));
+    }
 
     class BaseConnection : public std::enable_shared_from_this<BaseConnection>
     {
     public:
-        BaseConnection(asio::io_context& ioct);
+        BaseConnection(asio::io_context& ioct, std::size_t buffer_max_size = kDefaultBufferMaxSize);
         
         /// @brief 启动连接，开始异步读取数据
         virtual void Start() = 0;
@@ -32,15 +59,20 @@ namespace jl
         /// @param data 数据字符串
         virtual void Write(const std::string& data) = 0;
 
+        virtual void DoWrite() = 0;
+         
         /// @brief 关闭连接
         virtual void Close() = 0;
 
-        /// @brief 设置连接超时时间
+        /// @brief 设置定时器超时时间
         /// @param secs 超时时间，单位为秒，默认值为 kDefaultTimeout
         void SetTimeout(std::size_t secs = kDefaultTimeout);
         
         /// @brief 取消定时器
-        void CancelTimout();
+        void CancelTimer();
+
+        /// @brief 启动定时器
+        void StartTimer();
 
         /// @brief 设置写入完成回调函数
         /// @param callback 写入完成回调函数
@@ -92,17 +124,18 @@ namespace jl
         /// @param f 可调用对象
         /// @param a 分配器实例
         template <typename Function, typename Allocator = std::allocator<void>>
-        void PostTask(Function &&f, const Allocator &a = std::allocator<void>{}) const;
+        void PostTask(Function&& f, const Allocator& a = std::allocator<void>{}) const;
    
     protected:
         // std::uint64_t id_;
         std::size_t timeout_;
-        std::atomic<bool> shutdown_;
+        std::atomic<bool> read_in_progress_;
+        std::atomic<ConnectionState> state_;
         asio::io_context &ioct_;
-        asio::io_context::strand io_strand_;
+        asio::strand<asio::io_context::executor_type> io_strand_;  // warning: asio::io_context::strand 不推荐使用，其部分成员函数已经被废弃。推荐使用asio::strand<>
         asio::steady_timer timer_;
-        Buffer read_buffer_;
-        Buffer write_buffer_;
+        asio::streambuf read_buffer_;
+        std::queue<std::string> send_queue_;
         HandshakeCallback handshake_callback_;
         WriteFinishCallback write_finish_callback_;
         MessageCommingCallback message_comming_callback_;
@@ -113,6 +146,6 @@ namespace jl
     template<typename Function, typename Allocator>
     inline void BaseConnection::PostTask(Function&& f, const Allocator& a) const
     {
-        io_strand_.post(std::forward<Function>(f), a);
+        asio::post(io_strand_, std::forward<Function>(f));
     }
 }

@@ -1,11 +1,14 @@
 #include "ssl_connction.h"
 #include <logger.h>
+#include <global.h>
 
+    #if 0
 namespace jl
 {
-	SslConnection::SslConnection(asio::io_context& ioct, asio::ssl::context& ssl_context, Socket&& socket) :
+
+	SslConnection::SslConnection(asio::io_context& ioct, Socket&& socket) :
 		BaseConnection(ioct),
-		ssl_socket_(std::move(socket), ssl_context)
+		ssl_socket_(std::move(socket), jl::GetSslContext())
 	{
 	}
 
@@ -197,4 +200,6 @@ namespace jl
 			Close();
 		}
 	}
+
 }
+    #endif

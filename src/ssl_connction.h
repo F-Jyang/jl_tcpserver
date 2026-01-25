@@ -3,12 +3,14 @@
 #include <base_connection.h>
 #include <asio/ssl.hpp>
 
+    #if 0
 namespace jl
 {
+
     class SslConnection : public BaseConnection
     {
     public:
-        SslConnection(asio::io_context& ioct, asio::ssl::context &ssl_context, Socket&& socket);
+        SslConnection(asio::io_context& ioct, Socket&& socket);
         
         /// @brief 启动连接，开始异步读取数据
         void Start();
@@ -63,3 +65,4 @@ namespace jl
     };
 
 };
+    #endif

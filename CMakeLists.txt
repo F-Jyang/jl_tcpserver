@@ -15,6 +15,8 @@ set(CMAKE_LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib")
 file(GLOB SRC_FILES main.cpp src/*.cpp src/*.hpp src/*.h)
 
 add_subdirectory("${CMAKE_CURRENT_SOURCE_DIR}/3rd")
+    
+add_compile_definitions(-D ASIO_NO_DEPRECATED) # 禁用asio废弃api
 
 if(ENABLE_OPENSSL)
     add_compile_definitions(ENABLE_OPENSSL)

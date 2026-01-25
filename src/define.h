@@ -8,7 +8,11 @@ namespace jl
     namespace ssl = asio::ssl;
 
     using net = asio::ip::tcp;
-    using Socket = net::socket;
+	using Socket = net::socket;
+	using SSLSocket = ssl::stream<Socket>;
+	using ConstBuffer = asio::const_buffer;
+	using MutableBuffer = asio::mutable_buffer;
+
 
     class BaseConnection;
     class SslConnection;
@@ -17,7 +21,7 @@ namespace jl
       
 
     using ConnEstablishCallback = std::function<void(Socket&&)>; // 新连接回调函数
-    using MessageCommingCallback = std::function<void(const std::shared_ptr<BaseConnection> &, jl::Buffer &, std::size_t)>;
+    using MessageCommingCallback = std::function<void(const std::shared_ptr<BaseConnection> &, ConstBuffer&)>;
     using WriteFinishCallback = std::function<void(const std::shared_ptr<BaseConnection> &, std::size_t)>;
     using ConnCloseCallback = std::function<void(const std::shared_ptr<BaseConnection> &)>;
     using ConnTimeoutCallback = std::function<void(const std::shared_ptr<BaseConnection> &)>;
