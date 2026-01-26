@@ -14,7 +14,8 @@ public:
                 LOG_DEBUG("TimeoutCallback");
                 conn->Close();
                 });
-            conn->SetMessageCommingCallback([](const std::shared_ptr<jl::BaseConnection>& conn, jl::ConstBuffer& buffer) {
+			//conn->SetMessageCommingCallback([](const std::shared_ptr<jl::BaseConnection>& conn, jl::ConstBuffer& buffer) {
+			conn->SetMessageCommingCallback([](const std::shared_ptr<jl::BaseConnection>& conn, const std::string& buffer) {
                 std::string data(static_cast<const char*>(buffer.data()),buffer.size());
                 LOG_DEBUG("MessageCommingCallback: {}", data);
                 conn->Write(&data[0], data.size());

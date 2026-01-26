@@ -494,6 +494,31 @@ private:
 
 需要传入的buffer一般要求buffer_v1、buffer_v2，不能简单传入一个char*和len。这些函数的调用会自动管理buffer的指针，比如使用 aiso::streambuf 传入 asio::async_read 后无需手动 buffer::commit()，传入 asio::async_write 后无需手动调用buffer::consum()。一般来说会比直接调用socket的成员函数更方便、更安全。(ps:对于 asio::async_read 读取到的数据如果不用 std::ostream 的方式读取，可能需要手动调用  asio::streambuf::consum)
 
+###### asio::async_read_until:
+
+该函数的读取到 asio::streambuf 中的数据并不规定以分隔符结束，实际读取的数据会更多，但是传递给回调函数的 bytes_transffred 则是第一个分隔符被读取结束的位置。
+```cpp
+template<typename SocketType>
+inline void ConnectionTemplate<SocketType>::ReadUntil(const std::string& sep, std::size_t max_bytes)
+{
+  auto self = shared_from_this();
+  PostTask([=]() {
+    bool expected = false;
+    if (read_in_progress_.compare_exchange_strong(expected, true)) {
+      // note: read_until 读取的是包含sep的数据，而不是以sep为结束的数据。因此读取的数据量可能会更多
+      //		但是 bytes_transfferred 表示的是第一个sep出现索引，所以可以使用bytes_transfferred来表示读取的长度
+      asio::async_read_until(this->socket_, this->read_buffer_, sep,	
+        asio::bind_executor(io_strand_, [=](const std::error_code& ec, size_t bytes_transferred)
+          {
+            bool expected = true;
+            read_in_progress_.compare_exchange_strong(expected, false);
+            self->OnRead(ec, bytes_transferred, sep.size());
+          })
+        );
+    }});
+}
+```
+
 #### strand
 add_compile_definitions(-D ASIO_NO_DEPRECATED) # 禁用asio废弃api
 ##### asio::io_context::strand

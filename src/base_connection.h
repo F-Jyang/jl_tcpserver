@@ -103,7 +103,7 @@ namespace jl
         /// @brief 处理读取完成事件
         /// @param ec 错误码
         /// @param bytes_transferred 实际读取字节数
-        virtual void OnRead(const std::error_code &ec, size_t bytes_transferred) = 0;
+        virtual void OnRead(const std::error_code &ec, size_t bytes_transferred, std::size_t sep_len) = 0;
 
         /// @brief 处理写入完成事件
         /// @param ec 错误码

@@ -21,7 +21,8 @@ namespace jl
       
 
     using ConnEstablishCallback = std::function<void(Socket&&)>; // 新连接回调函数
-    using MessageCommingCallback = std::function<void(const std::shared_ptr<BaseConnection> &, ConstBuffer&)>;
+	//using MessageCommingCallback = std::function<void(const std::shared_ptr<BaseConnection> &, ConstBuffer&)>;
+	using MessageCommingCallback = std::function<void(const std::shared_ptr<BaseConnection> &, const std::string&)>;
     using WriteFinishCallback = std::function<void(const std::shared_ptr<BaseConnection> &, std::size_t)>;
     using ConnCloseCallback = std::function<void(const std::shared_ptr<BaseConnection> &)>;
     using ConnTimeoutCallback = std::function<void(const std::shared_ptr<BaseConnection> &)>;

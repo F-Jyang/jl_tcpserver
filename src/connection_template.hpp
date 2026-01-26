@@ -8,6 +8,7 @@
 #include <base_connection.h>
 #include <global.h>
 #include <queue>
+#include <logger.h>
 
 namespace jl
 {
@@ -92,7 +93,7 @@ namespace jl
         /// @brief 处理读取完成事件
         /// @param ec 错误码
         /// @param bytes_transferred 实际读取字节数
-        void OnRead(const std::error_code &ec, size_t bytes_transferred) override;
+        void OnRead(const std::error_code &ec, size_t bytes_transferred, std::size_t sep_len) override;
 
         /// @brief 处理写入完成事件
         /// @param ec 错误码
@@ -129,7 +130,8 @@ namespace jl
 	template<typename SocketType>
 	inline ConnectionTemplate<SocketType>::~ConnectionTemplate()
 	{
-		Close();
+		//assert(state_ == ConnectionState::kClosed);
+		//Close();
 	}
 
 	
@@ -168,7 +170,7 @@ namespace jl
 							}*/
 							bool expected = true;
 							read_in_progress_.compare_exchange_strong(expected, false);
-							self->OnRead(ec, bytes_transferred);
+							self->OnRead(ec, bytes_transferred, 0);
 						}
 					)
 				);
@@ -185,12 +187,14 @@ namespace jl
 			//buffer_.prepare(max_bytes); // read_util不需要手动prepare
 			bool expected = false;
 			if (read_in_progress_.compare_exchange_strong(expected, true)) {
-				asio::async_read_until(this->socket_, this->read_buffer_, sep,
+				// note: read_until 读取的是包含sep的数据，而不是以sep为结束的数据。因此读取的数据量可能会更多
+				//		但是bytes_transfferred 表示的是第一个sep出现索引，所以可以使用bytes_transfferred来表示读取的长度
+				asio::async_read_until(this->socket_, this->read_buffer_, sep,	
 					asio::bind_executor(io_strand_, [=](const std::error_code& ec, size_t bytes_transferred)
 						{
 							bool expected = true;
 							read_in_progress_.compare_exchange_strong(expected, false);
-							self->OnRead(ec, bytes_transferred);
+							self->OnRead(ec, bytes_transferred, sep.size());
 						}
 					)
 				);
@@ -243,7 +247,6 @@ namespace jl
 
 	}
 
-
     template<typename SocketType>
     inline void ConnectionTemplate<SocketType>::Write(const std::string& data)
     {
@@ -272,16 +275,23 @@ namespace jl
     }
 
     template<typename SocketType>
-    inline void ConnectionTemplate<SocketType>::OnRead(const std::error_code& ec, size_t bytes_transferred)
+    inline void ConnectionTemplate<SocketType>::OnRead(const std::error_code& ec, size_t bytes_transferred, std::size_t sep_len)
 	{
+		LOG_DEBUG("{} start", __FUNCTION__);
 		if (!ec)
 		{
-			ConstBuffer buffer = this->read_buffer_.data();
+			std::istream is(&this->read_buffer_);
+			std::string result(bytes_transferred, ' ');
+			is.read(result.data(), bytes_transferred);
+			if (sep_len > 0) {
+				result.resize(bytes_transferred - sep_len);
+			}
+			//ConstBuffer buffer = this->read_buffer_.data();
 			if (message_comming_callback_)
 			{
-				message_comming_callback_(shared_from_this(), buffer);
+				message_comming_callback_(shared_from_this(), result);
 			}
-			this->read_buffer_.consume(bytes_transferred); // note: 手动消费掉数据，如果不手动消费需要使用 std::ostream.read 的形式消费掉
+			//this->read_buffer_.consume(bytes_transferred); // note: 手动消费掉数据，如果不手动消费需要使用 std::ostream.read 的形式消费掉
 			//buffer = this->read_buffer_.data();			
 		}
 		else
@@ -293,13 +303,13 @@ namespace jl
 			}
 			Close();
 		}
+		LOG_DEBUG("{} finish", __FUNCTION__);
     }
-
-	// TODO: OnReadUntil，需要干掉最后的sep
 
     template<typename SocketType>
     inline void ConnectionTemplate<SocketType>::OnWrite(const std::error_code& ec, size_t bytes_transferred)
     {
+		LOG_DEBUG("{} start", __FUNCTION__);
 		if (!ec)
 		{
 			if (write_finish_callback_)
@@ -313,12 +323,13 @@ namespace jl
 			LOG_ERROR("{}:{} OnWrite message:{}", remote.address().to_string(), remote.port(), ec.message());
 			Close();
 		}
+		LOG_DEBUG("{} finish", __FUNCTION__);
     }
 
     template<typename SocketType>
     inline void ConnectionTemplate<SocketType>::OnTimeout(const std::error_code& ec)
     {
-
+		LOG_DEBUG("{} start", __FUNCTION__);
 		if (ec == asio::error::operation_aborted) // 定时器调用 expire 重置
 		{
 			return;
@@ -338,6 +349,7 @@ namespace jl
 			LOG_ERROR("{}:{} OnTimeout message:{}", remote.address().to_string(), remote.port(), ec.message());
 			Close();
 		}
+		LOG_DEBUG("{} finish", __FUNCTION__);
     }
 
     template<typename SocketType>
