@@ -34,7 +34,7 @@ namespace jl
 
     private:
         asio::io_context &ioct_;
-        std::unique_ptr<net::acceptor> acceptor_;
+        net::acceptor acceptor_;
         ConnEstablishCallback conn_establish_callback_;
     };
 }

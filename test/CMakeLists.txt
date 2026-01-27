@@ -19,3 +19,5 @@ foreach(src ${SRCS})
         )
     endif()
 endforeach()
+
+add_subdirectory("./http_server")

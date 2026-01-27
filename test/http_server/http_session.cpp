@@ -1,0 +1,90 @@
+#include "http_session.h"
+
+#include <http_server.h>
+
+void HttpSession::Start()
+{
+    auto self = shared_from_this();
+    conn_->SetMessageCommingCallback([=](const std::shared_ptr<jl::BaseConnection>& conn, const std::string& buffer)
+        {
+            if (state_ == State::kRequestLine)
+            {
+                request_.request_line_ = buffer;
+#ifdef _DEBUG
+                LOG_INFO("{}:{}> Request line: {}", remote_ip_, remote_port_, buffer);
+#endif
+                state_ = State::kHeaders;
+                conn->ReadUntil("\r\n");
+            }
+            else if (state_ == State::kHeaders)
+            {
+#ifdef _DEBUG
+                LOG_INFO("{}:{}> Header: {}", remote_ip_, remote_port_, buffer);
+#endif
+                if (buffer.size() > 0) // 读取到空行，头部读取完毕
+                {
+                    std::string key = buffer.substr(0, buffer.find(":"));
+                    std::string value = buffer.substr(buffer.find(":") + 2); // 跳过空格和冒号
+                    request_.headers_[key] = value;
+                    conn->ReadUntil("\r\n");
+                }
+                else
+                {
+                    if (request_.headers_.find("Content-Length") != request_.headers_.end()) // 有Content-Length字段，读取body
+                    {
+                        state_ = State::kBody;
+                        int content_length = std::stol(request_.headers_["Content-Length"]); // 获取Content-Length字段的值 fix: stol bug
+                        conn->ReadN(content_length);                                // 读取body
+                        return;
+                    }
+                    // else if (headers_.find("Transfer-Encoding") != headers_.end()) // 有Transfer-Encoding字段，读取body (暂时不支持)
+                    // {
+                    // }
+                    else // 没有Content-Length、Transfer-Encoding字段，说明没有request body
+                    {
+                        state_ = State::kDone;
+                        std::string response = GetHttpResponse(request_);
+                        conn_->Write(response);
+                    }
+                }
+            }
+            else if (state_ == State::kBody)
+            {
+                state_ = State::kDone;
+                request_.body_ = buffer;
+#ifdef _DEBUG
+                LOG_INFO("{}:{}> Request body: {}", remote_ip_, remote_port_, buffer);
+#endif // DEBUG
+                std::string response = GetHttpResponse(request_);
+                conn_->Write(response);
+            }
+            else
+            {
+                assert(false);
+            }
+        });
+
+    conn_->SetWriteFinishCallback([=](const std::shared_ptr<jl::BaseConnection>& conn, std::size_t bytes_transferred)
+        {
+            assert(state_ == State::kDone);
+            state_ = State::kRequestLine;
+            conn->ReadUntil("\r\n");
+            //LOG_INFO("Write finish: {}", bytes_transferred); 
+        });
+
+    conn_->SetConnCloseCallback([=](const std::shared_ptr<jl::BaseConnection>& conn)
+        {
+            //conn_map_.erase(conn.get());
+            auto server = server_.lock();
+            if (server) {
+                LOG_INFO("{}:{}> Connection closed.", remote_ip_, remote_port_);
+                server->RemoveSession(shared_from_this());
+            }
+        });
+
+    conn_->SetConnTimeoutCallback([=](const std::shared_ptr<jl::BaseConnection>& conn)
+        { 
+            LOG_INFO("Connection Timeout."); 
+        });
+    conn_->ReadUntil("\r\n");
+}

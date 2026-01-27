@@ -45,8 +45,10 @@ namespace jl
         virtual void Start() = 0;
        
         /// @brief 异步读取数据
-         /// @param max_bytes 最大读取字节数，默认值为 kDefaultMaxReadBytes
+        /// @param max_bytes 最大读取字节数，默认值为 kDefaultMaxReadBytes
         virtual void Read(std::size_t max_bytes = kDefaultMaxReadBytes) = 0;
+
+        virtual void ReadN(std::size_t exactly_bytes) = 0;
 
         virtual void ReadUntil(const std::string& sep, std::size_t max_bytes = kDefaultMaxReadBytes) = 0;
 
@@ -64,6 +66,10 @@ namespace jl
         /// @brief 关闭连接
         virtual void Close() = 0;
 
+        virtual net::endpoint GetRemoteEndpoint() const = 0;
+
+        virtual net::endpoint GetLocalEndpoint() const = 0;
+
         /// @brief 设置定时器超时时间
         /// @param secs 超时时间，单位为秒，默认值为 kDefaultTimeout
         void SetTimeout(std::size_t secs = kDefaultTimeout);
@@ -76,7 +82,7 @@ namespace jl
 
         /// @brief 设置写入完成回调函数
         /// @param callback 写入完成回调函数
-        void SetWriteFinishCallback(WriteFinishCallback callback) { write_finish_callback_ = callback; }
+        void SetWriteFinishCallback(WriteFinishCallback callback) { write_finish_callback_ = callback;}
 
         /// @brief 设置写入完成回调函数
         /// @param callback 写入完成回调函数

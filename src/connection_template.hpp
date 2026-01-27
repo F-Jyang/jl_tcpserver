@@ -16,17 +16,27 @@ namespace jl
         template<typename SocketType>
         struct SocketTypeTraits {
 
-            static net::endpoint GetEndpoint(SocketType& socket);
+			static net::endpoint GetRemoteEndpoint(const SocketType& socket);
+
+			static net::endpoint GetLocalEndpoint(const SocketType& socket);
 
             static void Close(SocketType& socket);
         };
         template<typename SocketType>
-        inline net::endpoint SocketTypeTraits<SocketType>::GetEndpoint(SocketType& socket)
+        inline net::endpoint SocketTypeTraits<SocketType>::GetRemoteEndpoint(const SocketType& socket)
         {
             std::error_code ignore;
             return socket.remote_endpoint(ignore);
         }
-        template<typename SocketType>
+        
+		template<typename SocketType>
+        inline net::endpoint SocketTypeTraits<SocketType>::GetLocalEndpoint(const SocketType& socket)
+        {
+            std::error_code ignore;
+            return socket.local_endpoint(ignore);
+        }
+
+		template<typename SocketType>
         inline void SocketTypeTraits<SocketType>::Close(SocketType& socket)
         {
 			std::error_code ignore;
@@ -36,9 +46,14 @@ namespace jl
 
         template<>
         struct SocketTypeTraits<SSLSocket> {
-			static net::endpoint GetEndpoint(SSLSocket& stream) {
+			static net::endpoint GetRemoteEndpoint(const SSLSocket& stream) {
 				std::error_code ignore;
 				return stream.lowest_layer().remote_endpoint(ignore);
+			}
+
+			static net::endpoint GetLocalEndpoint(const SSLSocket& stream) {
+				std::error_code ignore;
+				return stream.lowest_layer().local_endpoint(ignore);
 			}
 
 			static void Close(SSLSocket& stream) {
@@ -64,6 +79,12 @@ namespace jl
         /// @brief 异步读取数据
         /// @param max_bytes 最大读取字节数，默认值为 kDefaultMaxReadBytes
         void Read(std::size_t max_bytes = kDefaultMaxReadBytes) override;
+
+		net::endpoint GetRemoteEndpoint() const override;
+
+		net::endpoint GetLocalEndpoint() const override;
+
+		void ReadN(std::size_t exactly_bytes) override;
 
 		/// @brief 异步读取数据直到读到sep，或读取到最大字节max_bytes
         /// @param sep 分隔符
@@ -134,7 +155,18 @@ namespace jl
 		//Close();
 	}
 
-	
+	template<typename SocketType>
+	inline net::endpoint ConnectionTemplate<SocketType>::GetRemoteEndpoint() const
+	{
+		return detail::SocketTypeTraits<SocketType>::GetRemoteEndpoint(socket_);
+	}
+
+	template<typename SocketType>
+	inline net::endpoint ConnectionTemplate<SocketType>::GetLocalEndpoint() const
+	{
+		return detail::SocketTypeTraits<SocketType>::GetLocalEndpoint(socket_);
+	}
+
     template<typename SocketType>
     inline void ConnectionTemplate<SocketType>::Start()
     {
@@ -162,7 +194,8 @@ namespace jl
 			//LOG_INFO("In strand: {}", io_strand_.running_in_this_thread() ? "true" : "false");  // for debug，应该true
 			bool expected = false;
 			if (read_in_progress_.compare_exchange_strong(expected, true)) {
-				asio::async_read(this->socket_, this->read_buffer_, asio::transfer_at_least(1),
+				asio::async_read(this->socket_, this->read_buffer_, 
+					asio::transfer_at_least(1),
 					asio::bind_executor(io_strand_, [=](const std::error_code& ec, size_t bytes_transferred)
 						{
 							/*if (!ec) {
@@ -178,6 +211,28 @@ namespace jl
 			}
 		);
     }
+
+	template<typename SocketType>
+	inline void ConnectionTemplate<SocketType>::ReadN(std::size_t exactly_bytes)
+	{
+		auto self = shared_from_this();
+		PostTask([=]() {
+			bool expected = false;
+			if (read_in_progress_.compare_exchange_strong(expected, true)) {
+				asio::async_read(this->socket_, this->read_buffer_,
+					asio::transfer_exactly(exactly_bytes),
+					asio::bind_executor(this->io_strand_, [=](const std::error_code& ec, std::size_t bytes_transferred)
+						{
+							bool expected = true;
+							read_in_progress_.compare_exchange_strong(expected, false);
+							self->OnRead(ec, bytes_transferred, 0);
+						}
+					)
+				);
+			}
+			}
+		);
+	}
 
     template<typename SocketType>
     inline void ConnectionTemplate<SocketType>::ReadUntil(const std::string& sep, std::size_t max_bytes)
@@ -277,7 +332,7 @@ namespace jl
     template<typename SocketType>
     inline void ConnectionTemplate<SocketType>::OnRead(const std::error_code& ec, size_t bytes_transferred, std::size_t sep_len)
 	{
-		LOG_DEBUG("{} start", __FUNCTION__);
+		//LOG_DEBUG("{} start", __FUNCTION__);
 		if (!ec)
 		{
 			std::istream is(&this->read_buffer_);
@@ -298,18 +353,18 @@ namespace jl
 		{
 			if (ec != asio::error::eof) {
 				std::error_code ignore;
-				auto remote = detail::SocketTypeTraits<SocketType>::GetEndpoint(socket_);
+				auto remote = detail::SocketTypeTraits<SocketType>::GetRemoteEndpoint(socket_);
 				LOG_ERROR("{}:{} OnRead message:{}", remote.address().to_string(), remote.port(), ec.message());
 			}
 			Close();
 		}
-		LOG_DEBUG("{} finish", __FUNCTION__);
+		//LOG_DEBUG("{} finish", __FUNCTION__);
     }
 
     template<typename SocketType>
     inline void ConnectionTemplate<SocketType>::OnWrite(const std::error_code& ec, size_t bytes_transferred)
     {
-		LOG_DEBUG("{} start", __FUNCTION__);
+		//LOG_DEBUG("{} start", __FUNCTION__);
 		if (!ec)
 		{
 			if (write_finish_callback_)
@@ -319,17 +374,17 @@ namespace jl
 		}
 		else {
 			std::error_code ignore;
-			auto remote = detail::SocketTypeTraits<SocketType>::GetEndpoint(socket_);
+			auto remote = detail::SocketTypeTraits<SocketType>::GetRemoteEndpoint(socket_);
 			LOG_ERROR("{}:{} OnWrite message:{}", remote.address().to_string(), remote.port(), ec.message());
 			Close();
 		}
-		LOG_DEBUG("{} finish", __FUNCTION__);
+		//LOG_DEBUG("{} finish", __FUNCTION__);
     }
 
     template<typename SocketType>
     inline void ConnectionTemplate<SocketType>::OnTimeout(const std::error_code& ec)
     {
-		LOG_DEBUG("{} start", __FUNCTION__);
+		//LOG_DEBUG("{} start", __FUNCTION__);
 		if (ec == asio::error::operation_aborted) // 定时器调用 expire 重置
 		{
 			return;
@@ -345,11 +400,11 @@ namespace jl
 		else // 其他错误
 		{
 			std::error_code ignore;
-			auto remote = detail::SocketTypeTraits<SocketType>::GetEndpoint(socket_);
+			auto remote = detail::SocketTypeTraits<SocketType>::GetRemoteEndpoint(socket_);
 			LOG_ERROR("{}:{} OnTimeout message:{}", remote.address().to_string(), remote.port(), ec.message());
 			Close();
 		}
-		LOG_DEBUG("{} finish", __FUNCTION__);
+		//LOG_DEBUG("{} finish", __FUNCTION__);
     }
 
     template<typename SocketType>
@@ -364,7 +419,7 @@ namespace jl
 		else {
 			if (ec != asio::error::eof) {
 				std::error_code ignore;
-				auto remote = detail::SocketTypeTraits<SocketType>::GetEndpoint(socket_);
+				auto remote = detail::SocketTypeTraits<SocketType>::GetRemoteEndpoint(socket_);
 				LOG_ERROR("{}:{} OnHandshake fail, message:{}", remote.address().to_string(), remote.port(), ec.message());
 			}
 			Close();
