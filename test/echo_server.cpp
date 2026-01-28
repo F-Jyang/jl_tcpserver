@@ -1,5 +1,6 @@
 #include <server.h>
 #include <logger.h>
+#include <timer.h>
 #include <connection_template.hpp>
 
 class EchoServer
@@ -9,25 +10,36 @@ public:
         tcp_server_.DoAwaitStop();
         tcp_server_.SetConnEstablishCallback([=](jl::Socket&& socket){
             auto conn = std::make_shared<jl::Connection>(tcp_server_.GetIoContext(), std::move(socket));
-            //conn->SetTimeout(3);
-            conn->SetConnTimeoutCallback([](const std::shared_ptr<jl::BaseConnection>& conn) {
-                LOG_DEBUG("TimeoutCallback");
+            auto timer = std::make_shared<jl::Timer>(conn);
+            timer->SetCallback([conn]() {
+                LOG_ERROR("TimeoutCallback");
                 conn->Close();
                 });
+
+            //conn->SetTimeout(3);
+            //conn->SetConnTimeoutCallback([](const std::shared_ptr<jl::BaseConnection>& conn) {
+            //    LOG_DEBUG("TimeoutCallback");
+            //    conn->Close();
+            //    });
 			//conn->SetMessageCommingCallback([](const std::shared_ptr<jl::BaseConnection>& conn, jl::ConstBuffer& buffer) {
-			conn->SetMessageCommingCallback([](const std::shared_ptr<jl::BaseConnection>& conn, const std::string& buffer) {
+			conn->SetMessageCommingCallback([=](const std::shared_ptr<jl::BaseConnection>& conn, const std::string& buffer) {
+                timer->Cancel();
                 std::string data(static_cast<const char*>(buffer.data()),buffer.size());
                 LOG_DEBUG("MessageCommingCallback: {}", data);
                 conn->Write(&data[0], data.size());
+                timer->Wait(10000);
                 });
-            conn->SetWriteFinishCallback([](const std::shared_ptr<jl::BaseConnection>& conn, std::size_t read_bytes) {
+            conn->SetWriteFinishCallback([=](const std::shared_ptr<jl::BaseConnection>& conn, std::size_t read_bytes) {
+                timer->Cancel();
                 LOG_DEBUG("WriteFinishCallback");
                 conn->Read();
+                timer->Wait(10000);
                 });
-            conn->SetConnCloseCallback([](const std::shared_ptr<jl::BaseConnection>& conn) {
+            conn->SetConnCloseCallback([=](const std::shared_ptr<jl::BaseConnection>& conn) {
                 LOG_DEBUG("CloseCallback");
                 });
-            conn->ReadUntil("world");
+            //conn->ReadUntil("world");
+            timer->Wait(10000);
             conn->Start();
 
         });

@@ -46,16 +46,26 @@ namespace jl
        
         /// @brief 异步读取数据
         /// @param max_bytes 最大读取字节数，默认值为 kDefaultMaxReadBytes
-        virtual void Read(std::size_t max_bytes = kDefaultMaxReadBytes) = 0;
+        virtual void Read() = 0;
 
         virtual void ReadN(std::size_t exactly_bytes) = 0;
 
-        virtual void ReadUntil(const std::string& sep, std::size_t max_bytes = kDefaultMaxReadBytes) = 0;
+        virtual void ReadUntil(const std::string& sep) = 0;
+
+        virtual const asio::any_io_executor& GetExecutor() = 0;
+
+		//virtual void ReadWithTimeout(std::size_t secs, std::size_t max_bytes = kDefaultMaxReadBytes) = 0;
+
+		//virtual void ReadNWithTimeout(std::size_t secs, std::size_t exactly_bytes) = 0;
+
+		//virtual void ReadUntilWithTimeout(std::size_t secs, const std::string& sep, std::size_t max_bytes = kDefaultMaxReadBytes) = 0;
 
         /// @brief 异步写入数据
         /// @param data 数据指针
         /// @param n 数据字节数
-        virtual void Write(const void* data, std::size_t n) = 0;
+		virtual void Write(const void* data, std::size_t n) = 0;
+		
+        //virtual void WriteWithTimeout(std::size_t secs, const void* data, std::size_t n) = 0;
 
         /// @brief 异步写入数据
         /// @param data 数据字符串
@@ -70,15 +80,9 @@ namespace jl
 
         virtual net::endpoint GetLocalEndpoint() const = 0;
 
-        /// @brief 设置定时器超时时间
-        /// @param secs 超时时间，单位为秒，默认值为 kDefaultTimeout
-        void SetTimeout(std::size_t secs = kDefaultTimeout);
-        
-        /// @brief 取消定时器
-        void CancelTimer();
-
-        /// @brief 启动定时器
-        void StartTimer();
+        ///// @brief 设置定时器超时时间
+        ///// @param secs 超时时间，单位为秒，默认值为 kDefaultTimeout
+        //void SetTimeout(std::size_t secs = kDefaultTimeout);
 
         /// @brief 设置写入完成回调函数
         /// @param callback 写入完成回调函数
@@ -96,9 +100,9 @@ namespace jl
         /// @param callback 连接关闭回调函数
         void SetConnCloseCallback(ConnCloseCallback callback) { conn_close_callback_ = callback; }
 
-        /// @brief 设置连接超时回调函数
-        /// @param callback 连接超时回调函数
-        void SetConnTimeoutCallback(ConnTimeoutCallback callback) { conn_timeout_callback_ = callback; }
+        ///// @brief 设置连接超时回调函数
+        ///// @param callback 连接超时回调函数
+        //void SetConnTimeoutCallback(ConnTimeoutCallback callback) { conn_timeout_callback_ = callback; }
 
         asio::io_context &GetIoContext();
 
@@ -116,9 +120,9 @@ namespace jl
         /// @param bytes_transferred 实际写入字节数
         virtual void OnWrite(const std::error_code &ec, size_t bytes_transferred) = 0;
 
-        /// @brief 处理超时事件
-        /// @param ec 错误码
-        virtual void OnTimeout(const std::error_code &ec) = 0;
+        ///// @brief 处理超时事件
+        ///// @param ec 错误码
+        //virtual void OnTimeout(const std::error_code &ec) = 0;
 
         /// @brief 握手完成事件
         /// @param ec 错误码
@@ -134,19 +138,18 @@ namespace jl
    
     protected:
         // std::uint64_t id_;
-        std::size_t timeout_;
         std::atomic<bool> read_in_progress_;
         std::atomic<ConnectionState> state_;
         asio::io_context &ioct_;
-        asio::strand<asio::io_context::executor_type> io_strand_;  // warning: asio::io_context::strand 不推荐使用，其部分成员函数已经被废弃。推荐使用asio::strand<>
-        asio::steady_timer timer_;
+        //asio::strand<asio::io_context::executor_type> io_strand_;  // warning: asio::io_context::strand 不推荐使用，其部分成员函数已经被废弃。推荐使用asio::strand<>
+        //asio::steady_timer timer_;
         asio::streambuf read_buffer_;
         std::queue<std::string> send_queue_;
         HandshakeCallback handshake_callback_;
         WriteFinishCallback write_finish_callback_;
         MessageCommingCallback message_comming_callback_;
         ConnCloseCallback conn_close_callback_;
-        ConnTimeoutCallback conn_timeout_callback_;
+        //ConnTimeoutCallback conn_timeout_callback_;
     };
 
     template<typename Function, typename Allocator>

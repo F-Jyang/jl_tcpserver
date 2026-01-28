@@ -46,9 +46,12 @@ void jl::Acceptor::DoAccept()
         assert(false);
         return; // 直接返回
     }
-
+    auto socket_ptr = std::make_shared<net::socket>(asio::make_strand(ioct_));
     auto self(shared_from_this()); // 获取自身的shared_ptr，防止在异步操作中被销毁m
-    acceptor_.async_accept(std::bind(&Acceptor::OnAccept, self, std::placeholders::_1, std::placeholders::_2));
+    acceptor_.async_accept(*socket_ptr, [socket_ptr, self](const std::error_code& ec) {
+        self->OnAccept(ec, std::move(*socket_ptr));
+        }
+    );
 }
 
 jl::Acceptor::~Acceptor()

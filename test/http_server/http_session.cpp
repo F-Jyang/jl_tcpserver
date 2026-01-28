@@ -5,8 +5,10 @@
 void HttpSession::Start()
 {
     auto self = shared_from_this();
-    conn_->SetMessageCommingCallback([=](const std::shared_ptr<jl::BaseConnection>& conn, const std::string& buffer)
+    conn_->SetMessageCommingCallback(
+        [=](const std::shared_ptr<jl::BaseConnection>& conn, const std::string& buffer)
         {
+            timer_.Cancel();
             if (state_ == State::kRequestLine)
             {
                 request_.request_line_ = buffer;
@@ -35,7 +37,6 @@ void HttpSession::Start()
                         state_ = State::kBody;
                         int content_length = std::stol(request_.headers_["Content-Length"]); // 获取Content-Length字段的值 fix: stol bug
                         conn->ReadN(content_length);                                // 读取body
-                        return;
                     }
                     // else if (headers_.find("Transfer-Encoding") != headers_.end()) // 有Transfer-Encoding字段，读取body (暂时不支持)
                     // {
@@ -62,13 +63,16 @@ void HttpSession::Start()
             {
                 assert(false);
             }
+            timer_.Wait(5000);
         });
 
     conn_->SetWriteFinishCallback([=](const std::shared_ptr<jl::BaseConnection>& conn, std::size_t bytes_transferred)
         {
+            timer_.Cancel();
             assert(state_ == State::kDone);
             state_ = State::kRequestLine;
             conn->ReadUntil("\r\n");
+            timer_.Wait(5000);
             //LOG_INFO("Write finish: {}", bytes_transferred); 
         });
 
@@ -81,10 +85,13 @@ void HttpSession::Start()
                 server->RemoveSession(shared_from_this());
             }
         });
-
-    conn_->SetConnTimeoutCallback([=](const std::shared_ptr<jl::BaseConnection>& conn)
-        { 
-            LOG_INFO("Connection Timeout."); 
-        });
+    timer_.SetCallback([self]() {self->OnTimeout(); });
+    timer_.Wait(5000);
     conn_->ReadUntil("\r\n");
+}
+
+void HttpSession::OnTimeout()
+{
+    LOG_ERROR("{}:{}> Connection timeout.", remote_ip_, remote_port_);
+    conn_->Close();
 }

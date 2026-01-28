@@ -25,7 +25,7 @@ namespace jl
 	using MessageCommingCallback = std::function<void(const std::shared_ptr<BaseConnection> &, const std::string&)>;
     using WriteFinishCallback = std::function<void(const std::shared_ptr<BaseConnection> &, std::size_t)>;
     using ConnCloseCallback = std::function<void(const std::shared_ptr<BaseConnection> &)>;
-    using ConnTimeoutCallback = std::function<void(const std::shared_ptr<BaseConnection> &)>;
+    using TimeoutCallback = std::function<void()>;
     using HandshakeCallback = std::function<void(const std::shared_ptr<BaseConnection> &)>;
 
     // using SslHandshakeCallback = std::function<void(const std::shared_ptr<SslConnection> &)>;

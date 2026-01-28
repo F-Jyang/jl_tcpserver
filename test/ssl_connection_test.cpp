@@ -15,9 +15,9 @@ public:
             gConnCnt.fetch_add(1,std::memory_order_relaxed);
             //jl::ssl::stream<jl::net::socket> stream(std::move(socket), jl::GetSslContext());
             auto ssl_connction = std::make_shared<jl::SSLConnection>(tcp_server_.GetIoContext(), std::move(socket));
-            ssl_connction->SetConnTimeoutCallback([](const std::shared_ptr<jl::BaseConnection>& conn){
-                conn->Close();
-            });
+            //ssl_connction->SetConnTimeoutCallback([](const std::shared_ptr<jl::BaseConnection>& conn){
+            //    conn->Close();
+            //});
             ssl_connction->SetHandshakeCallback([](const std::shared_ptr<jl::BaseConnection>& conn){
                 conn->Read();
             });

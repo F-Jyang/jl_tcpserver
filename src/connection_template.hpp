@@ -13,14 +13,36 @@
 namespace jl
 {
     namespace detail {
+
+		struct TransferAtMost_t {
+		public:
+			using result_type = std::size_t;
+			
+			explicit TransferAtMost_t(std::size_t size):
+				size_(size)
+			{}
+
+			template<typename Error>
+			std::size_t operator()(const Error& err, std::size_t bytes_transferred) 
+			{
+				return (!err || bytes_transferred >= size_) ? 0
+					: (size_ - bytes_transferred < default_max_transfer_size ? size_ - bytes_transferred
+						: std::size_t(default_max_transfer_size));
+			}
+		private:
+			std::size_t size_;
+		};
+
+		inline TransferAtMost_t TransferAtMost(std::size_t max_bytes) {
+			return TransferAtMost_t(max_bytes);
+		}
+
         template<typename SocketType>
         struct SocketTypeTraits {
 
 			static net::endpoint GetRemoteEndpoint(const SocketType& socket);
 
 			static net::endpoint GetLocalEndpoint(const SocketType& socket);
-
-            static void Close(SocketType& socket);
         };
         template<typename SocketType>
         inline net::endpoint SocketTypeTraits<SocketType>::GetRemoteEndpoint(const SocketType& socket)
@@ -36,14 +58,6 @@ namespace jl
             return socket.local_endpoint(ignore);
         }
 
-		template<typename SocketType>
-        inline void SocketTypeTraits<SocketType>::Close(SocketType& socket)
-        {
-			std::error_code ignore;
-			socket.shutdown(Socket::shutdown_both, ignore);
-			socket.close(ignore); // 文档要求: call shutdown() before closing the socket，否则可能会提示非法套接字，好像就算先shutdown也可能会
-        }
-
         template<>
         struct SocketTypeTraits<SSLSocket> {
 			static net::endpoint GetRemoteEndpoint(const SSLSocket& stream) {
@@ -54,12 +68,6 @@ namespace jl
 			static net::endpoint GetLocalEndpoint(const SSLSocket& stream) {
 				std::error_code ignore;
 				return stream.lowest_layer().local_endpoint(ignore);
-			}
-
-			static void Close(SSLSocket& stream) {
-				std::error_code ignore;
-				stream.lowest_layer().shutdown(Socket::shutdown_both, ignore);
-				stream.lowest_layer().close(ignore);
 			}
         };
     }
@@ -78,23 +86,28 @@ namespace jl
 
         /// @brief 异步读取数据
         /// @param max_bytes 最大读取字节数，默认值为 kDefaultMaxReadBytes
-        void Read(std::size_t max_bytes = kDefaultMaxReadBytes) override;
+        void Read() override;
 
 		net::endpoint GetRemoteEndpoint() const override;
 
 		net::endpoint GetLocalEndpoint() const override;
 
+		const asio::any_io_executor& GetExecutor() override;
+
+		/// @brief 异步读取数据 exactly_bytes 个字节
+		/// @param exactly_bytes 读取的字节数
 		void ReadN(std::size_t exactly_bytes) override;
 
 		/// @brief 异步读取数据直到读到sep，或读取到最大字节max_bytes
         /// @param sep 分隔符
 	    /// @param max_bytes 最大读取字节数，默认值为 kDefaultMaxReadBytes
-        void ReadUntil(const std::string& sep, std::size_t max_bytes = kDefaultMaxReadBytes) override;
+        void ReadUntil(const std::string& sep) override;
 
         /// @brief 异步写入数据
         /// @param data 数据指针
         /// @param n 数据字节数
         void Write(const void *data, std::size_t n) override;
+
 
         /// @brief 异步写入数据
         /// @param data 数据字符串
@@ -121,9 +134,9 @@ namespace jl
         /// @param bytes_transferred 实际写入字节数
         void OnWrite(const std::error_code &ec, size_t bytes_transferred) override;
 
-        /// @brief 处理超时事件
-        /// @param ec 错误码
-        void OnTimeout(const std::error_code &ec) override;
+        ///// @brief 处理超时事件
+        ///// @param ec 错误码
+        //void OnTimeout(const std::error_code &ec) override;
 
     /// @brief 处理握手完成事件
     /// @param ec 错误码
@@ -167,6 +180,18 @@ namespace jl
 		return detail::SocketTypeTraits<SocketType>::GetLocalEndpoint(socket_);
 	}
 
+	template<typename SocketType>
+	inline const asio::any_io_executor& ConnectionTemplate<SocketType>::GetExecutor()
+	{
+		return socket_.get_executor();
+	}
+
+	template<>
+	inline const asio::any_io_executor& ConnectionTemplate<SSLSocket>::GetExecutor()
+	{
+		return socket_.lowest_layer().get_executor();
+	}
+
     template<typename SocketType>
     inline void ConnectionTemplate<SocketType>::Start()
     {
@@ -176,86 +201,110 @@ namespace jl
 	template<>
 	inline void ConnectionTemplate<SSLSocket>::Start() {
 		auto self = shared_from_this();
-		PostTask([=]() {
-			this->socket_.async_handshake(ssl::stream_base::server,
-				asio::bind_executor(io_strand_, [=](const std::error_code& ec) {
-					self->OnHandshake(ec);
-					})
-			);
-			}
-		);
+		this->socket_.async_handshake(ssl::stream_base::server,
+			[=](const std::error_code& ec) {
+				//	self->OnHandshake(ec);
+				//	}
+			});
 	}
+		//PostTask([=]() {
+				//asio::bind_executor(io_strand_, [=](const std::error_code& ec) {
+				//	self->OnHandshake(ec);
+				//	})
+		//)
+	//}
 
     template<typename SocketType>
-    inline void ConnectionTemplate<SocketType>::Read(std::size_t max_bytes)
+    inline void ConnectionTemplate<SocketType>::Read()
     {
 		auto self = shared_from_this();
-		PostTask([=]() {
-			//LOG_INFO("In strand: {}", io_strand_.running_in_this_thread() ? "true" : "false");  // for debug，应该true
-			bool expected = false;
-			if (read_in_progress_.compare_exchange_strong(expected, true)) {
-				asio::async_read(this->socket_, this->read_buffer_, 
-					asio::transfer_at_least(1),
-					asio::bind_executor(io_strand_, [=](const std::error_code& ec, size_t bytes_transferred)
-						{
-							/*if (!ec) {
-								this->read_buffer_.commit(bytes_transferred); // note: async_read 会 commit
-							}*/
-							bool expected = true;
-							read_in_progress_.compare_exchange_strong(expected, false);
-							self->OnRead(ec, bytes_transferred, 0);
-						}
-					)
-				);
-			}
-			}
-		);
+		bool expected = false;
+		if (read_in_progress_.compare_exchange_strong(expected, true)) {
+			asio::async_read(this->socket_, this->read_buffer_,
+				asio::transfer_at_least(1),
+				[=](const std::error_code& ec, size_t bytes_transferred)
+				{
+					/*if (!ec) {
+						this->read_buffer_.commit(bytes_transferred); // note: async_read 会 commit
+					}*/
+					bool expected = true;
+					read_in_progress_.compare_exchange_strong(expected, false);
+					self->OnRead(ec, bytes_transferred, 0);
+				}
+			);
+		}
+				//asio::bind_executor(io_strand_, [=](const std::error_code& ec, size_t bytes_transferred)
+				//	{
+				//		/*if (!ec) {
+				//			this->read_buffer_.commit(bytes_transferred); // note: async_read 会 commit
+				//		}*/
+				//		bool expected = true;
+				//		read_in_progress_.compare_exchange_strong(expected, false);
+				//		self->OnRead(ec, bytes_transferred, 0);
+				//	}
+				//)
+		//PostTask([=]() {
+		//	//LOG_INFO("In strand: {}", io_strand_.running_in_this_thread() ? "true" : "false");  // for debug，应该true
+		//	}
+		//);
     }
 
 	template<typename SocketType>
 	inline void ConnectionTemplate<SocketType>::ReadN(std::size_t exactly_bytes)
 	{
 		auto self = shared_from_this();
-		PostTask([=]() {
-			bool expected = false;
-			if (read_in_progress_.compare_exchange_strong(expected, true)) {
-				asio::async_read(this->socket_, this->read_buffer_,
-					asio::transfer_exactly(exactly_bytes),
-					asio::bind_executor(this->io_strand_, [=](const std::error_code& ec, std::size_t bytes_transferred)
-						{
-							bool expected = true;
-							read_in_progress_.compare_exchange_strong(expected, false);
-							self->OnRead(ec, bytes_transferred, 0);
-						}
-					)
-				);
-			}
-			}
-		);
+		bool expected = false;
+		if (read_in_progress_.compare_exchange_strong(expected, true)) {
+			asio::async_read(this->socket_, this->read_buffer_,
+				asio::transfer_exactly(exactly_bytes),
+				[=](const std::error_code& ec, std::size_t bytes_transferred)
+				{
+					bool expected = true;
+					read_in_progress_.compare_exchange_strong(expected, false);
+					self->OnRead(ec, bytes_transferred, 0);
+				}
+			);
+		}
+		//PostTask([=]() {
+		//	asio::bind_executor(this->io_strand_, [=](const std::error_code& ec, std::size_t bytes_transferred)
+		//		{
+		//			bool expected = true;
+		//			read_in_progress_.compare_exchange_strong(expected, false);
+		//			self->OnRead(ec, bytes_transferred, 0);
+		//		}
+		//	)
+		//	}
+		//);
 	}
 
     template<typename SocketType>
-    inline void ConnectionTemplate<SocketType>::ReadUntil(const std::string& sep, std::size_t max_bytes)
+    inline void ConnectionTemplate<SocketType>::ReadUntil(const std::string& sep)
 	{
 		auto self = shared_from_this();
-		PostTask([=]() {
-			//buffer_.prepare(max_bytes); // read_util不需要手动prepare
-			bool expected = false;
-			if (read_in_progress_.compare_exchange_strong(expected, true)) {
-				// note: read_until 读取的是包含sep的数据，而不是以sep为结束的数据。因此读取的数据量可能会更多
-				//		但是bytes_transfferred 表示的是第一个sep出现索引，所以可以使用bytes_transfferred来表示读取的长度
-				asio::async_read_until(this->socket_, this->read_buffer_, sep,	
-					asio::bind_executor(io_strand_, [=](const std::error_code& ec, size_t bytes_transferred)
-						{
-							bool expected = true;
-							read_in_progress_.compare_exchange_strong(expected, false);
-							self->OnRead(ec, bytes_transferred, sep.size());
-						}
-					)
-				);
-			}
-			}
-		);
+		bool expected = false;
+		if (read_in_progress_.compare_exchange_strong(expected, true)) {
+			// note: read_until 读取的是包含sep的数据，而不是以sep为结束的数据。因此读取的数据量可能会更多
+			//		但是bytes_transfferred 表示的是第一个sep出现索引，所以可以使用bytes_transfferred来表示读取的长度
+			asio::async_read_until(this->socket_, this->read_buffer_, sep,
+				[=](const std::error_code& ec, size_t bytes_transferred)
+				{
+					bool expected = true;
+					read_in_progress_.compare_exchange_strong(expected, false);
+					self->OnRead(ec, bytes_transferred, sep.size());
+				}
+			);
+		}
+		//PostTask([=]() {
+		//	asio::bind_executor(io_strand_, [=](const std::error_code& ec, size_t bytes_transferred)
+		//		{
+		//			bool expected = true;
+		//			read_in_progress_.compare_exchange_strong(expected, false);
+		//			self->OnRead(ec, bytes_transferred, sep.size());
+		//		}
+		//	)
+		//	//buffer_.prepare(max_bytes); // read_util不需要手动prepare
+		//	}
+		//);
 		/*io_strand_.wrap([=](const std::error_code& ec, size_t bytes_transferred) // asio::io_context::strand::wrap、post都是废弃api
 			{
 				bool expected = true;
@@ -270,13 +319,14 @@ namespace jl
 	{
 		auto self = shared_from_this();
 		std::string copy(static_cast<const char*>(data), n);
-		PostTask([=]() {
-			const bool write_in_progress = !this->send_queue_.empty();
-			this->send_queue_.emplace(copy);
-			if (!write_in_progress) {
-				self->DoWrite();
-			}}
-		);
+		const bool write_in_progress = !this->send_queue_.empty();
+		this->send_queue_.emplace(copy);
+		if (!write_in_progress) {
+			self->DoWrite();
+		}
+		//PostTask([=]() {
+		//	}
+		//);
 	}
 
 	template<typename SocketType>
@@ -287,19 +337,29 @@ namespace jl
 		asio::async_write(socket_,
 			asio::buffer(this->send_queue_.front()),
 			asio::transfer_exactly(n),
-			asio::bind_executor(io_strand_, [=](const std::error_code& ec, size_t bytes_transferred)
-				{
-					self->OnWrite(ec, bytes_transferred);
-					if (!ec) {
-						this->send_queue_.pop();
-						if (!this->send_queue_.empty()) {
-							self->DoWrite();
-						}
+			[=](const std::error_code& ec, size_t bytes_transferred)
+			{
+				self->OnWrite(ec, bytes_transferred);
+				if (!ec) {
+					this->send_queue_.pop();
+					if (!this->send_queue_.empty()) {
+						self->DoWrite();
 					}
 				}
-			)
+			}
 		);
 
+			//asio::bind_executor(io_strand_, [=](const std::error_code& ec, size_t bytes_transferred)
+			//	{
+			//		self->OnWrite(ec, bytes_transferred);
+			//		if (!ec) {
+			//			this->send_queue_.pop();
+			//			if (!this->send_queue_.empty()) {
+			//				self->DoWrite();
+			//			}
+			//		}
+			//	}
+			//)
 	}
 
     template<typename SocketType>
@@ -315,13 +375,63 @@ namespace jl
 		if (state_.compare_exchange_strong(expected, ConnectionState::kClosed))
 		{
 			std::error_code ignore;
-            detail::SocketTypeTraits<SocketType>::Close(socket_);
+			socket_.shutdown(Socket::shutdown_both, ignore);
+			socket_.close(ignore); // 文档要求: call shutdown() before closing the socket，否则可能会提示非法套接字，好像就算先shutdown也可能会
 			if (conn_close_callback_)
 			{
 				conn_close_callback_(shared_from_this());
 			}
 		}
     }
+
+	template<>
+	inline void ConnectionTemplate<SSLSocket>::Close()
+	{
+		ConnectionState expected = ConnectionState::kActived;
+		if (state_.compare_exchange_strong(expected, ConnectionState::kClosed))
+		{
+			std::error_code ignore;
+			auto self = shared_from_this();
+			std::shared_ptr<asio::steady_timer> handshake_timer = std::make_shared<asio::steady_timer>(socket_.lowest_layer().get_executor());
+			handshake_timer->async_wait(
+				[self, this](const asio::error_code& ec) {
+					if (!ec) {
+						LOG_ERROR("SSL shutdown timeout");
+						std::error_code ignore;
+						this->socket_.lowest_layer().close(ignore);
+						if (conn_close_callback_)
+						{
+							conn_close_callback_(shared_from_this());
+						}
+					}
+				}
+			);
+			handshake_timer->expires_after(std::chrono::seconds(3));
+			socket_.async_shutdown(
+				[handshake_timer,self, this](const asio::error_code& ec) {
+					handshake_timer->cancel();
+					if (ec && ec != asio::ssl::error::stream_truncated)  // shutdown failed!
+					{
+						LOG_ERROR("SSL shutdown error: {}", ec.message());
+					}
+					std::error_code ignore;
+					socket_.lowest_layer().close(ignore);
+					if (conn_close_callback_)
+					{
+						conn_close_callback_(shared_from_this());
+					}
+				}
+			);
+
+
+			// socket.shutdown(Socket::shutdown_both, ignore);
+			// socket.close(ignore); // 文档要求: call shutdown() before closing the socket，否则可能会提示非法套接字，好像就算先shutdown也可能会
+			// if (conn_close_callback_)
+			// {
+			// 	conn_close_callback_(shared_from_this());
+			// }
+		}
+	}
 
     template<typename SocketType>
     inline SocketType ConnectionTemplate<SocketType>::ExtractSocket()&&
@@ -381,31 +491,31 @@ namespace jl
 		//LOG_DEBUG("{} finish", __FUNCTION__);
     }
 
-    template<typename SocketType>
-    inline void ConnectionTemplate<SocketType>::OnTimeout(const std::error_code& ec)
-    {
-		//LOG_DEBUG("{} start", __FUNCTION__);
-		if (ec == asio::error::operation_aborted) // 定时器调用 expire 重置
-		{
-			return;
-		}
-		else if (!ec) // 正常超时
-		{
-			//if()
-			if (conn_timeout_callback_)
-			{
-				conn_timeout_callback_(shared_from_this());
-			}
-		}
-		else // 其他错误
-		{
-			std::error_code ignore;
-			auto remote = detail::SocketTypeTraits<SocketType>::GetRemoteEndpoint(socket_);
-			LOG_ERROR("{}:{} OnTimeout message:{}", remote.address().to_string(), remote.port(), ec.message());
-			Close();
-		}
-		//LOG_DEBUG("{} finish", __FUNCTION__);
-    }
+  //  template<typename SocketType>
+  //  inline void ConnectionTemplate<SocketType>::OnTimeout(const std::error_code& ec)
+  //  {
+		////LOG_DEBUG("{} start", __FUNCTION__);
+		//if (ec == asio::error::operation_aborted) // 定时器调用 expire 重置
+		//{
+		//	return;
+		//}
+		//else if (!ec) // 正常超时
+		//{
+		//	//if()
+		//	if (conn_timeout_callback_)
+		//	{
+		//		conn_timeout_callback_(shared_from_this());
+		//	}
+		//}
+		//else // 其他错误
+		//{
+		//	std::error_code ignore;
+		//	auto remote = detail::SocketTypeTraits<SocketType>::GetRemoteEndpoint(socket_);
+		//	LOG_ERROR("{}:{} OnTimeout message:{}", remote.address().to_string(), remote.port(), ec.message());
+		//	Close();
+		//}
+		////LOG_DEBUG("{} finish", __FUNCTION__);
+  //  }
 
     template<typename SocketType>
     inline void ConnectionTemplate<SocketType>::OnHandshake(const std::error_code& ec)
