@@ -6,6 +6,7 @@
 #include <map>
 #include <string>
 #include <mutex>
+#include <util.h>
 
 class HttpServer : public std::enable_shared_from_this<HttpServer>
 {
@@ -14,15 +15,16 @@ public:
 
     void Start();
 
-    void AppendSession(const std::shared_ptr<HttpSession>& session);
+    void AppendSession(std::int64_t session_id, const std::shared_ptr<HttpSession>& session);
 
-    void RemoveSession(const std::shared_ptr<HttpSession>& session);
+    void RemoveSession(std::int64_t session_id);
 
     void Stop();
 
 private:
+    std::unique_ptr<jl::util::IdGenerator> id_generator_;
     std::mutex session_mutex_;
-    std::map<HttpSession*, std::shared_ptr<HttpSession>> sessions_;
+    std::map<std::int64_t, std::shared_ptr<HttpSession>> sessions_;
     asio::io_context ioct_;
     jl::Server tcp_server_;
 };

@@ -8,6 +8,11 @@ namespace jl
     {
     }
 
+    Timer::Timer(const asio::any_io_executor& executor) :
+        timer_(executor)
+    {
+    }
+
     void Timer::Wait(std::size_t milli_secs)
     {
         timer_.expires_after(std::chrono::milliseconds(milli_secs));
@@ -30,8 +35,6 @@ namespace jl
 #ifdef _DEBUG
                     LOG_WARN("OnTimeout operation_aborted.");
 #endif // _DEBUG
-
-
                 }
             });
     }

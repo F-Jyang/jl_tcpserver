@@ -1,6 +1,7 @@
 #include "http_session.h"
 
 #include <http_server.h>
+#include <util.h>
 
 void HttpSession::Start()
 {
@@ -82,7 +83,7 @@ void HttpSession::Start()
             auto server = server_.lock();
             if (server) {
                 LOG_INFO("{}:{}> Connection closed.", remote_ip_, remote_port_);
-                server->RemoveSession(shared_from_this());
+                server->RemoveSession(self->session_id_);
             }
         });
     timer_.SetCallback([self]() {self->OnTimeout(); });
