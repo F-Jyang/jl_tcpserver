@@ -4,7 +4,7 @@
 #include <timer.h>
 #include <util.h>
 
-#include <connection_template.hpp>
+#include <connection.h>
 
 class HttpServer;
 

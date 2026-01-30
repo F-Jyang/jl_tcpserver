@@ -6,9 +6,6 @@
 
 #pragma once
 #include <acceptor.h>
-#include <unordered_map>
-#include <iostream>
-#include <unordered_set>
 
 namespace jl
 {
@@ -34,8 +31,6 @@ namespace jl
         
         /// @brief 异步接受SIGINT停止信号
         void DoAwaitStop();
-
-        std::unordered_set <std::shared_ptr<BaseConnection>> conn_set_;
 
     private:
 

@@ -4,9 +4,9 @@ HttpServer::HttpServer(const std::string& ip, unsigned short port) :
 	tcp_server_(ioct_, ip, port),
 	id_generator_(jl::util::MakeIdGenerator<jl::util::Snowflake>(1))
 {
-	tcp_server_.SetConnEstablishCallback([=](jl::Socket&& socket)
+	tcp_server_.SetConnEstablishCallback([=](jl::net::socket&& socket)
 		{
-			std::shared_ptr<jl::Connection> conn = std::make_shared<jl::Connection>(ioct_, std::move(socket));
+			std::shared_ptr<jl::Connection> conn = jl::MakeConnection(std::move(socket));
 			std::int64_t session_id = id_generator_->GenerateId();
 			std::shared_ptr<HttpSession> session = std::make_shared<HttpSession>(shared_from_this(), session_id, conn);
 			this->AppendSession(session_id, session);

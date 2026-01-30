@@ -6,7 +6,7 @@
 
 #pragma once
 
-#include <connection_template.hpp>
+#include <connection.h>
 
 namespace jl {
 	class Timer {
@@ -14,7 +14,7 @@ namespace jl {
 
 		/// @brief 创建与Connection关联的定时器，要求Connection中的socket绑定asio::strand，否则多线程下可能存在并发安全问题
 		/// @param conn 关联的Connection
-		Timer(const std::shared_ptr<BaseConnection>& conn);
+		Timer(const std::shared_ptr<Connection>& conn);
 
 		/// @brief 使用executor创建定时器
 		/// @param executor 关联的executor

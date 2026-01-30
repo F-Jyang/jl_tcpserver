@@ -1,4 +1,3 @@
-#include <buffer.h>
 #ifdef _WIN32
 #include <locale.h>
 #endif

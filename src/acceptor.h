@@ -6,7 +6,6 @@
 
 #pragma once
 #include <define.h>
-#include <connection.h>
 #include <memory>
 
 namespace jl

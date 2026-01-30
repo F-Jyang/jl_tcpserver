@@ -3,7 +3,7 @@
 
 namespace jl
 {
-    Timer::Timer(const std::shared_ptr<BaseConnection>& conn) :
+    Timer::Timer(const std::shared_ptr<Connection>& conn) :
         timer_(conn->GetExecutor())
     {
     }

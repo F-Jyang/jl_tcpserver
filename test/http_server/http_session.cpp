@@ -7,7 +7,7 @@ void HttpSession::Start()
 {
     auto self = shared_from_this();
     conn_->SetMessageCommingCallback(
-        [=](const std::shared_ptr<jl::BaseConnection>& conn, const std::string& buffer)
+        [=](const std::shared_ptr<jl::Connection>& conn, const std::string& buffer)
         {
             timer_.Cancel();
             if (state_ == State::kRequestLine)
@@ -67,7 +67,7 @@ void HttpSession::Start()
             timer_.Wait(5000);
         });
 
-    conn_->SetWriteFinishCallback([=](const std::shared_ptr<jl::BaseConnection>& conn, std::size_t bytes_transferred)
+    conn_->SetWriteFinishCallback([=](const std::shared_ptr<jl::Connection>& conn, std::size_t bytes_transferred)
         {
             timer_.Cancel();
             assert(state_ == State::kDone);
@@ -77,7 +77,7 @@ void HttpSession::Start()
             //LOG_INFO("Write finish: {}", bytes_transferred); 
         });
 
-    conn_->SetConnCloseCallback([=](const std::shared_ptr<jl::BaseConnection>& conn)
+    conn_->SetConnCloseCallback([=](const std::shared_ptr<jl::Connection>& conn)
         {
             //conn_map_.erase(conn.get());
             auto server = server_.lock();

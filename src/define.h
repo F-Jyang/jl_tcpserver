@@ -8,25 +8,20 @@ namespace jl
     namespace ssl = asio::ssl;
 
     using net = asio::ip::tcp;
-	using Socket = net::socket;
-	using SSLSocket = ssl::stream<Socket>;
 	using ConstBuffer = asio::const_buffer;
 	using MutableBuffer = asio::mutable_buffer;
 
 
-    class BaseConnection;
-    class SslConnection;
-    class Buffer;
-    class Server;
+    class Connection;
       
 
-    using ConnEstablishCallback = std::function<void(Socket&&)>; // 新连接回调函数
-	//using MessageCommingCallback = std::function<void(const std::shared_ptr<BaseConnection> &, ConstBuffer&)>;
-	using MessageCommingCallback = std::function<void(const std::shared_ptr<BaseConnection> &, const std::string&)>;
-    using WriteFinishCallback = std::function<void(const std::shared_ptr<BaseConnection> &, std::size_t)>;
-    using ConnCloseCallback = std::function<void(const std::shared_ptr<BaseConnection> &)>;
+    using ConnEstablishCallback = std::function<void(net::socket&&)>; // 新连接回调函数
+	//using MessageCommingCallback = std::function<void(const std::shared_ptr<Connection> &, ConstBuffer&)>;
+	using MessageCommingCallback = std::function<void(const std::shared_ptr<Connection> &, const std::string&)>;
+    using WriteFinishCallback = std::function<void(const std::shared_ptr<Connection> &, std::size_t)>;
+    using ConnCloseCallback = std::function<void(const std::shared_ptr<Connection> &)>;
     using TimeoutCallback = std::function<void()>;
-    using HandshakeCallback = std::function<void(const std::shared_ptr<BaseConnection> &)>;
+    using HandshakeCallback = std::function<void(const std::shared_ptr<Connection> &)>;
 
     // using SslHandshakeCallback = std::function<void(const std::shared_ptr<SslConnection> &)>;
     // using SslMessageCommingCallback = std::function<void(const std::shared_ptr<SslConnection> &, std::size_t, jl::Buffer &)>;

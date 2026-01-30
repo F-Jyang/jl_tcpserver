@@ -7,7 +7,6 @@
 
 #pragma once
 #include <define.h>
-#include <buffer.h>
 #include <queue>
 
 namespace jl
