@@ -3,7 +3,7 @@
 
 namespace jl
 {
-    Timer::Timer(const std::shared_ptr<Connection>& conn) :
+    Timer::Timer(const std::shared_ptr<IConnection>& conn) :
         timer_(conn->GetExecutor())
     {
     }
@@ -15,15 +15,16 @@ namespace jl
 
     void Timer::Wait(std::size_t milli_secs)
     {
+        auto self = shared_from_this();
         timer_.expires_after(std::chrono::milliseconds(milli_secs));
         timer_.async_wait(
             [=](const std::error_code& ec)
             {
                 if (!ec) // 正常超时
                 {
-                    if (callback_)
+                    if (self->callback_)
                     {
-                        callback_();
+                        self->callback_();
                     }
                 }
                 else if (ec && ec != asio::error::operation_aborted)

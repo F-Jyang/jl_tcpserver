@@ -19,14 +19,7 @@ void jl::Server::Start(std::size_t thread_cnt)
         io_threads_.emplace_back(std::make_unique<std::thread>(
             [=]()
             {
-                try
-                {
-                    ioct_.run();
-                }
-                catch (const std::exception& e)
-                {
-                    LOG_ERROR("error: {}", e.what());
-                }
+                ioct_.run();
             }));
         --thread_cnt;
     }

@@ -17,28 +17,31 @@ class HttpSession :public std::enable_shared_from_this<HttpSession> {
     };
 
 public:
-    HttpSession(const std::shared_ptr<HttpServer>& server, std::int64_t id, const std::shared_ptr<jl::Connection>& conn) :
+    HttpSession(const std::shared_ptr<HttpServer>& server, std::int64_t id, const std::shared_ptr<jl::IConnection>& conn) :
         state_(State::kRequestLine),
         server_(server),
         session_id_(id),
         conn_(conn),
-        timer_(conn),
+        timer_(std::make_shared<jl::Timer>(conn)),
         remote_ip_(conn->GetRemoteEndpoint().address().to_string()),
         remote_port_(conn->GetRemoteEndpoint().port())
     {
     }
 
     void Start();
+    
+    ~HttpSession();
+
 private:
     void OnTimeout();
 
 private:
     std::int64_t session_id_;
-    jl::Timer timer_;
+    std::shared_ptr<jl::Timer> timer_;
     const std::string remote_ip_;
     const unsigned short remote_port_;
     State state_;
-    std::shared_ptr<jl::Connection> conn_;
+    std::shared_ptr<jl::IConnection> conn_;
     HttpRequest request_;
     //HttpResponse response_;
     std::weak_ptr<HttpServer> server_;

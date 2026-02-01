@@ -14,24 +14,24 @@ public:
             // conn->SetTimeout(2);
             gConnCnt.fetch_add(1,std::memory_order_relaxed);
             auto ssl_connction = jl::MakeSSLConnection(std::move(socket));
-            //ssl_connction->SetConnTimeoutCallback([](const std::shared_ptr<jl::BaseConnection>& conn){
+            //ssl_connction->SetConnTimeoutCallback([](const std::shared_ptr<jl::IConnection>& conn){
             //    conn->Close();
             //});
-            ssl_connction->SetHandshakeCallback([](const std::shared_ptr<jl::Connection>& conn){
+            ssl_connction->SetHandshakeCallback([](const std::shared_ptr<jl::IConnection>& conn){
                 conn->Read();
             });
-            ssl_connction->SetMessageCommingCallback([](const std::shared_ptr<jl::Connection>& conn, const std::string& buffer) {
+            ssl_connction->SetMessageCommingCallback([](const std::shared_ptr<jl::IConnection>& conn, const std::string& buffer) {
 				std::string data(static_cast<const char*>(buffer.data()), buffer.size());
 				LOG_DEBUG("MessageCommingCallback: {}", data);
 				conn->Write(&data[0], data.size());
 				});
-            ssl_connction->SetWriteFinishCallback([](const std::shared_ptr<jl::Connection>& conn,std::size_t read_bytes){
+            ssl_connction->SetWriteFinishCallback([](const std::shared_ptr<jl::IConnection>& conn,std::size_t read_bytes){
                 conn->Read();
             });
-            ssl_connction->SetConnCloseCallback([](const std::shared_ptr<jl::Connection>& conn){
+            ssl_connction->SetConnCloseCallback([](const std::shared_ptr<jl::IConnection>& conn){
                 LOG_INFO("conn close");
             });
-            ssl_connction->Start();
+            ssl_connction->Handshake();
         });
 
     }

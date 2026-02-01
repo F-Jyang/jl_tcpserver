@@ -1,7 +1,6 @@
 #include <server.h>
 #include <logger.h>
 #include <timer.h>
-#include <socket.h>
 
 class EchoServer
 {
@@ -11,12 +10,16 @@ public:
         tcp_server_.SetConnEstablishCallback([=](jl::net::socket&& socket){
             auto conn = jl::MakeConnection(std::move(socket));
             auto timer = std::make_shared<jl::Timer>(conn);
-            timer->SetCallback([conn]() {
+            std::weak_ptr<jl::IConnection> weak = conn;
+            timer->SetCallback([weak]() {
+                auto conn = weak.lock();
                 LOG_ERROR("TimeoutCallback");
-                conn->Close();
+                if (conn) {
+                    conn->Close();
+                }
                 });
 
-			conn->SetMessageCommingCallback([=](const std::shared_ptr<jl::Connection>& conn, const std::string& buffer) {
+			conn->SetMessageCommingCallback([=](const std::shared_ptr<jl::IConnection>& conn, const std::string& buffer) {
                 timer->Cancel();
                 std::string data(static_cast<const char*>(buffer.data()),buffer.size());
                 LOG_DEBUG("MessageCommingCallback: {}", data);
@@ -25,13 +28,13 @@ public:
                 conn->Write(data+"3");
                 timer->Wait(10000);
                 });
-            conn->SetWriteFinishCallback([=](const std::shared_ptr<jl::Connection>& conn, std::size_t read_bytes) {
+            conn->SetWriteFinishCallback([=](const std::shared_ptr<jl::IConnection>& conn, std::size_t read_bytes) {
                 timer->Cancel();
                 LOG_DEBUG("WriteFinishCallback");
                 conn->Read();
                 timer->Wait(10000);
                 });
-            conn->SetConnCloseCallback([=](const std::shared_ptr<jl::Connection>& conn) {
+            conn->SetConnCloseCallback([=](const std::shared_ptr<jl::IConnection>& conn) {
                 LOG_DEBUG("CloseCallback");
                 });
             //conn->ReadUntil("world");
