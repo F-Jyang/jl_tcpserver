@@ -6,6 +6,11 @@
 void HttpSession::Start()
 {
     std::weak_ptr<HttpSession> weak = shared_from_this();
+    conn_->SetHandshakeCallback(
+        [=](const std::shared_ptr<jl::IConnection>& conn)
+        {
+            conn->ReadUntil("\r\n");
+        });
     conn_->SetMessageCommingCallback(
         [=](const std::shared_ptr<jl::IConnection>& conn, const std::string& buffer)
         {
@@ -67,7 +72,7 @@ void HttpSession::Start()
             {
                 assert(false);
             }
-            timer_->Wait(5000);
+            timer_->Wait(10000);
         });
 
     conn_->SetWriteFinishCallback([=](const std::shared_ptr<jl::IConnection>& conn, std::size_t bytes_transferred)
@@ -78,7 +83,7 @@ void HttpSession::Start()
                 assert(state_ == State::kDone);
                 state_ = State::kRequestLine;
                 conn->ReadUntil("\r\n");
-                timer_->Wait(5000);
+                timer_->Wait(10000);
                 //LOG_INFO("Write finish: {}", bytes_transferred); 
             }
         });
@@ -100,8 +105,9 @@ void HttpSession::Start()
                 self->OnTimeout();
             };
         });
-    timer_->Wait(5000);
-    conn_->ReadUntil("\r\n");
+    timer_->Wait(10000);
+    //conn_->ReadUntil("\r\n");
+    conn_->Handshake();
 }
 
 HttpSession::~HttpSession()

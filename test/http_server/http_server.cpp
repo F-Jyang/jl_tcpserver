@@ -6,7 +6,7 @@ HttpServer::HttpServer(const std::string& ip, unsigned short port) :
 {
 	tcp_server_.SetConnEstablishCallback([=](jl::net::socket&& socket)
 		{
-			std::shared_ptr<jl::IConnection> conn = jl::MakeConnection(std::move(socket));
+			std::shared_ptr<jl::IConnection> conn = jl::MakeSSLConnection(std::move(socket));
 			std::int64_t session_id = id_generator_->GenerateId();
 			std::shared_ptr<HttpSession> session = std::make_shared<HttpSession>(shared_from_this(), session_id, conn);
 			this->AppendSession(session_id, session);

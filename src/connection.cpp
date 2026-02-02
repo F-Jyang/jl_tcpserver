@@ -203,7 +203,7 @@ jl::Connection::~Connection()
 
 jl::SSLConnection::SSLConnection(net::socket&& socket, std::size_t max_buffer_size) :
 	IConnection(max_buffer_size),
-	socket_(std::move(socket),GetSslContext())
+	socket_(std::move(socket),Global::Instance().GetSSLContext())
 {
 }
 
@@ -326,31 +326,35 @@ void jl::SSLConnection::Close()
 	if (state_.compare_exchange_strong(expected, ConnectionState::kClosed)) {
 		std::error_code ignore;
 		auto self = shared_from_this();
+		std::shared_ptr<bool> has_close = std::make_shared<bool>(false);
 		std::shared_ptr<asio::steady_timer> handshake_timer = std::make_shared<asio::steady_timer>(GetExecutor());
-		handshake_timer->async_wait(
-			[self,this](const asio::error_code& ec) {
-				if (!ec) {
-					LOG_ERROR("SSL shutdown timeout");
-					std::error_code ignore;
-					this->socket_.lowest_layer().close(ignore);
-					if (this->conn_close_callback_) {
-						this->conn_close_callback_(self);
-					}
-				}
-			}
-		);
-		handshake_timer->expires_after(std::chrono::seconds(3));
 		socket_.async_shutdown(
-			[self,this, handshake_timer](const asio::error_code& ec) {
+			[self,this, handshake_timer, has_close](const asio::error_code& ec) {
+				if (*has_close)return;
 				handshake_timer->cancel();
 				if (ec && ec != asio::ssl::error::stream_truncated)  // shutdown failed!
 				{
-					LOG_ERROR("SSL shutdown error: {}", ec.message());
+					LOG_DEBUG("SSL shutdown error: {}", ec.message());
 				}
 				std::error_code ignore;
 				socket_.lowest_layer().close(ignore);
 				if (this->conn_close_callback_) {
 					this->conn_close_callback_(self);
+				}
+				LOG_DEBUG("SSL shutdown successful");
+			}
+		);
+		handshake_timer->expires_after(std::chrono::seconds(3));
+		handshake_timer->async_wait(
+			[self,this, has_close](const asio::error_code& ec) {
+				if (!ec) {
+					LOG_DEBUG("SSL shutdown timeout");
+					std::error_code ignore;
+					this->socket_.lowest_layer().close(ignore);
+					if (this->conn_close_callback_) {
+						this->conn_close_callback_(self);
+					}
+					*has_close = true;
 				}
 			}
 		);
@@ -412,7 +416,8 @@ void jl::SSLConnection::OnWrite(const std::error_code& ec, size_t bytes_transfer
 			write_finish_callback_(shared_from_this(), bytes_transferred);
 		}
 	}
-	else {
+	else 
+	{
 		std::error_code ignore;
 		auto remote = GetRemoteEndpoint();
 		LOG_ERROR("{}:{} OnWrite message:{}", remote.address().to_string(), remote.port(), ec.message());
@@ -422,13 +427,15 @@ void jl::SSLConnection::OnWrite(const std::error_code& ec, size_t bytes_transfer
 
 void jl::SSLConnection::OnHandshake(const std::error_code& ec)
 {
-	if (!ec) {
+	if (!ec) 
+	{
 		if (handshake_callback_)
 		{
 			handshake_callback_(shared_from_this());
 		}
 	}
-	else {
+	else 
+	{
 		if (ec != asio::error::eof) {
 			std::error_code ignore;
 			auto remote = GetRemoteEndpoint();

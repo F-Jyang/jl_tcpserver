@@ -4,7 +4,6 @@
 
 namespace jl {
 
-
     int kLogMaxSize = 1024 * 1024 * 20;
     int kLogMaxFiles = 3;
     int kLogFlushInterval = 3;
