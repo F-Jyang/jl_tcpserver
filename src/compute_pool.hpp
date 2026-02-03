@@ -18,8 +18,7 @@ namespace jl
 {
     class ComputeThreadPool
     {
-        using Task = std::packaged_task<void()>;
-        using TaskPtr = std::shared_ptr<Task>;
+        using Task = std::function<void()>;
 
     public:
         static ComputeThreadPool &GetInstance();
@@ -29,28 +28,75 @@ namespace jl
         ComputeThreadPool &operator=(const ComputeThreadPool &) = delete;
 
         /// @brief 提交任务
-        /// @param task_ptr 任务指针
-        void Post(const TaskPtr &task_ptr)
-        {
-            std::unique_lock<std::mutex> lock(mutex_);
-            task_queue_.emplace(std::move(task_ptr));
-            cond_.notify_one();
-        }
-
-        /// @brief 提交任务
         /// @tparam Func 函数类型
         /// @tparam Args 参数类型
         /// @param f 函数对象
         /// @param args 参数对象
         template <typename Func, typename... Args>
-        void Post(Func &&f, Args &&...args)
+        auto Post(Func&& f, Args &&...args) -> std::future<std::result_of_t<std::decay_t<Func>(std::decay_t<Args>...)>>
         {
-            TaskPtr task_ptr = std::make_shared<Task>(std::bind(std::forward<Func>(f), std::forward<Args>(args)...));
+            using ReturnType = std::future<std::result_of_t<std::decay_t<Func>(std::decay_t<Args>...)>>;
+            auto task_ptr = std::make_shared<std::packaged_task<std::result_of_t<std::decay_t<Func>(std::decay_t<Args>...)>(void)>>(std::bind(std::forward<Func>(f), std::forward<Args>(args)...));
             // this->Post(task_ptr); // bug: error
-            std::unique_lock<std::mutex> lock(mutex_);
-            task_queue_.emplace(std::move(task_ptr));
+            {
+                std::unique_lock<std::mutex> lock(mutex_);
+                task_queue_.emplace([task_ptr]()
+                    {
+                        (*task_ptr)();
+                    });
+            }
             cond_.notify_one();
+            return task_ptr->get_future();
         }
+
+        //// 提交任务，返回 future
+        //template <typename Func, typename... Args>
+        //auto Post(Func&& f, Args&&... args)
+        //    -> std::future<typename std::result_of<
+        //    typename std::decay<Func>::type(typename std::decay<Args>::type...)
+        //    >::type>
+        //{
+        //    using ReturnType = typename std::result_of<
+        //        typename std::decay<Func>::type(typename std::decay<Args>::type...)
+        //    >::type;
+
+        //    // 将函数和参数打包到 tuple（值语义，避免引用悬挂）
+        //    using TaskType = std::packaged_task<ReturnType()>;
+
+        //    // 使用 lambda 捕获 tuple，延迟执行时展开
+        //    auto bound_args = std::make_shared<std::tuple<
+        //        typename std::decay<Func>::type,
+        //        typename std::decay<Args>::type...
+        //        >>(
+        //            std::forward<Func>(f),
+        //            std::forward<Args>(args)...
+        //            );
+
+        //    auto task = std::make_shared<TaskType>([bound_args]() mutable {
+        //        return ApplyImpl<ReturnType>(bound_args.get(),
+        //            std::index_sequence_for<Args...>{});
+        //        });
+
+        //    std::future<ReturnType> result = task->get_future();
+
+        //    {
+        //        std::unique_lock<std::mutex> lock(mutex_);
+        //        if (stop_) {
+        //            throw std::runtime_error("ThreadPool stopped");
+        //        }
+        //        task_queue_.emplace([task]() { (*task)(); });
+        //    }
+
+        //    cond_.notify_one();
+        //    return result;
+        //}
+
+
+        //// 展开 tuple 调用函数：第0个元素是函数，其余是参数
+        //template <typename ReturnType, typename Tuple, std::size_t... Indices>
+        //static ReturnType ApplyImpl(Tuple* t, std::index_sequence<Indices...>) {
+        //    return std::get<0>(*t)(std::get<Indices + 1>(std::move(*t))...);
+        //}
 
         /// @brief 停止线程池
         void Stop();
@@ -64,7 +110,7 @@ namespace jl
         std::atomic<bool> stop_;
         std::mutex mutex_;
         std::condition_variable cond_;
-        std::queue<TaskPtr> task_queue_;
+        std::queue<Task> task_queue_;
         std::vector<std::unique_ptr<std::thread>> thread_pool_;
     };
 }

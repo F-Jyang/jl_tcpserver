@@ -31,22 +31,25 @@ jl::ComputeThreadPool::ComputeThreadPool(std::size_t thread_cnt)
     while (thread_cnt > 0)
     {
         thread_pool_.emplace_back(std::make_unique<std::thread>([=]()
-                                                                {
-      TaskPtr task;
-      while (!stop_) {
-        {
-            std::unique_lock<std::mutex> lock(mutex_);
-            while (task_queue_.empty() && !stop_) {
-              cond_.wait(lock);
-            }
-            if (stop_) {
-              break;
-            }
-            task = task_queue_.front();
-            task_queue_.pop();
-        }
-        (*task)();
-      } }));
+            {
+                Task task;
+                while (!stop_)
+                {
+                    {
+                        std::unique_lock<std::mutex> lock(mutex_);
+                        while (task_queue_.empty() && !stop_) {
+                            cond_.wait(lock);
+                        }
+                        if (stop_) {
+                            break;
+                        }
+                        task = std::move(task_queue_.front());
+                        task_queue_.pop();
+                    }
+                    (task)();
+                }
+            })
+        );
         --thread_cnt;
     }
 }

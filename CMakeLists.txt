@@ -16,7 +16,7 @@ file(GLOB SRC_FILES main.cpp src/*.cpp src/*.hpp src/*.h)
 
 add_subdirectory("${CMAKE_CURRENT_SOURCE_DIR}/3rd")
     
-add_compile_definitions(-D ASIO_NO_DEPRECATED) # 禁用asio废弃api
+add_compile_definitions(ASIO_NO_DEPRECATED) # 禁用asio废弃api
 
 if(ENABLE_OPENSSL)
     add_compile_definitions(ENABLE_OPENSSL)
@@ -26,7 +26,7 @@ endif()
 
 if(MSVC)
     add_compile_options("/utf-8")
-    add_compile_definitions(-D _WIN32_WINDOWS)
+    add_compile_definitions(_WIN32_WINDOWS)
     set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS ON) # 编译dll库需要导出所有符号
     # target_compile_options(${PROJECT_NAME} PRIVATE /Zc:__cplusplus) # msvc不会自动设置cpp版本宏
     # target_link_options(easy_tools PRIVATE $<IF:$<CONFIG:Debug>,/SUBSYSTEM:CONSOLE,/SUBSYSTEM:WINDOWS> /ENTRY:mainCRTStartup) # 设置debug、release下不同的入口

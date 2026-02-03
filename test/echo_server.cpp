@@ -51,16 +51,6 @@ private:
     jl::Server tcp_server_;
 };
 
-//void data(const void* data, std::size_t size) {
-//    asio::streambuf buf;
-//    std::ostream os(&buf);
-//    os.write(static_cast<const char*>(data), size);
-//    
-//    asio::const_buffer input = buf.data();
-//    std::string s(static_cast<const char*>(input.data()), input.size());
-//    std::cout << s << std::endl;
-//}
-
 int main(int argc, char const *argv[])
 {
     asio::io_context ioct;
