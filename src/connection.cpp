@@ -173,7 +173,7 @@ namespace jl {
 				{
 					std::istream is(&this->read_buffer_);
 					std::string result(bytes_transferred, ' ');
-					is.read(result.data(), bytes_transferred);
+					is.read(&result[0], bytes_transferred);
 					if (sep_len > 0) {
 						result.resize(bytes_transferred - sep_len);
 					}
@@ -424,7 +424,7 @@ namespace jl {
 			{
 				std::istream is(&this->read_buffer_);
 				std::string result(bytes_transferred, ' ');
-				is.read(result.data(), bytes_transferred);
+				is.read(&result[0], bytes_transferred);
 				if (sep_len > 0) {
 					result.resize(bytes_transferred - sep_len);
 				}

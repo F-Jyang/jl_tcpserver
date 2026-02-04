@@ -3,6 +3,7 @@ project(jl_tcpserver VERSION 0.1.0 LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
+message(STATUS "CPP Version: ${CMAKE_CXX_STANDARD}")
 
 option(BUILD_TESTS "build test" ON)
 option(BUILD_JL_TCPSERVER_AS_SHARED "build shared library" ON)

@@ -40,8 +40,8 @@ int main(int argc, char const *argv[])
         //                  { func_ptr->Compute(i, i + 1); });
         //std::future<void> f2 = compute_pool.Post([=]
         //                  { func_ptr->Compute(); });    
-        //std::future<void> f2 = compute_pool.Post(&FuncStruct::Compute, func_ptr, i, i + 1);
-        f = compute_pool.Post([&value]() {value += 1; return value.load(); });
+        std::future<void> f2 = compute_pool.Post(&FuncStruct::Compute, func_ptr, i, i + 1);
+        //f = compute_pool.Post([&value]() {value += 1; return value.load(); });
         printf("%d\n", f.get());
     }
     std::cout << value.load() << std::endl;
