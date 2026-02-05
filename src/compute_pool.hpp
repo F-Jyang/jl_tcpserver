@@ -82,56 +82,6 @@ namespace jl
 			return task_ptr->get_future();
 		}
 #endif
-
-        //// 提交任务，返回 future
-        //template <typename Func, typename... Args>
-        //auto Post(Func&& f, Args&&... args)
-        //    -> std::future<typename std::result_of<
-        //    typename std::decay<Func>::type(typename std::decay<Args>::type...)
-        //    >::type>
-        //{
-        //    using ReturnType = typename std::result_of<
-        //        typename std::decay<Func>::type(typename std::decay<Args>::type...)
-        //    >::type;
-
-        //    // 将函数和参数打包到 tuple（值语义，避免引用悬挂）
-        //    using TaskType = std::packaged_task<ReturnType()>;
-
-        //    // 使用 lambda 捕获 tuple，延迟执行时展开
-        //    auto bound_args = std::make_shared<std::tuple<
-        //        typename std::decay<Func>::type,
-        //        typename std::decay<Args>::type...
-        //        >>(
-        //            std::forward<Func>(f),
-        //            std::forward<Args>(args)...
-        //            );
-
-        //    auto task = std::make_shared<TaskType>([bound_args]() mutable {
-        //        return ApplyImpl<ReturnType>(bound_args.get(),
-        //            std::index_sequence_for<Args...>{});
-        //        });
-
-        //    std::future<ReturnType> result = task->get_future();
-
-        //    {
-        //        std::unique_lock<std::mutex> lock(mutex_);
-        //        if (stop_) {
-        //            throw std::runtime_error("ThreadPool stopped");
-        //        }
-        //        task_queue_.emplace([task]() { (*task)(); });
-        //    }
-
-        //    cond_.notify_one();
-        //    return result;
-        //}
-
-
-        //// 展开 tuple 调用函数：第0个元素是函数，其余是参数
-        //template <typename ReturnType, typename Tuple, std::size_t... Indices>
-        //static ReturnType ApplyImpl(Tuple* t, std::index_sequence<Indices...>) {
-        //    return std::get<0>(*t)(std::get<Indices + 1>(std::move(*t))...);
-        //}
-
         /// @brief 停止线程池
         void Stop();
 
