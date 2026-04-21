@@ -1,10 +1,6 @@
 ## TODO:
-### connection添加超时io函数
-### 实现一个类似 asio::transfer_all 的函数，用于读取最大指定数量的字节
 ### bug:server退出时需要所有的Connection->Close()
 ### server添加asio::resolver，支持域名解析
-### 添加唯一id生成函数，雪花算法
-### ssl::context设置证书等函数实现、ssl连接测试
 ### 添加更多例子
 ### 添加性能测试
 

@@ -494,6 +494,202 @@ inline void ConnectionTemplate<SocketType>::ReadUntil(const std::string& sep, st
 }
 ```
 
+##### asio::async_read 与 asio::async_read_until 组合使用踩坑：
+```cpp
+// asio::async_read，直接调用asio::async_read_some 从socket中读取指定的n个字节。就算read_buffer_中有n个字节，也是从socket中读取，并不处理read_buffer_中的字节
+auto self = shared_from_this();
+asio::async_read(
+    this->socket_,
+    read_buffer_,
+    asio::transfer_exactly(n),
+    [self, readable](const std::error_code &ec, std::size_t bytes_transferred)
+    {
+        self->OnRead(ec, readable + bytes_transferred);
+    }
+);
+
+// asio::async_read_until，优先检查read_buffer_中是否存在end结束符，不存在才会进行 asio::async_read_some 读取字节，直到读取到end
+auto self = shared_from_this();
+asio::async_read_until(
+    this->socket_,
+    read_buffer_,
+    end,
+    [self](const std::error_code &ec, std::size_t bytes_transferred)
+    {
+        self->OnRead(ec, bytes_transferred);
+    }
+);
+```
+以上代码的行为可以进入asio的源码中查看
+```cpp
+// asio::async_read_until 具体实现在 impl/read_until.hpp 中
+template <typename AsyncReadStream,
+    typename DynamicBuffer_v1, typename ReadHandler>
+class read_until_delim_string_op_v1
+  : public base_from_cancellation_state<ReadHandler>
+{
+  // ....
+
+  void operator()(asio::error_code ec,
+      std::size_t bytes_transferred, int start = 0)
+  {
+    const std::size_t not_found = (std::numeric_limits<std::size_t>::max)();
+    std::size_t bytes_to_read;
+    switch (start_ = start)
+    {
+    case 1:
+      for (;;)
+      {
+        {
+          // Determine the range of the data to be searched.
+          typedef typename DynamicBuffer_v1::const_buffers_type
+            buffers_type;
+          typedef buffers_iterator<buffers_type> iterator;
+          buffers_type data_buffers = buffers_.data();
+          iterator begin = iterator::begin(data_buffers);
+          iterator start_pos = begin + search_position_;
+          iterator end = iterator::end(data_buffers);
+
+          // Look for a match. 进来后先进行查找
+          std::pair<iterator, bool> result = detail::partial_search(
+              start_pos, end, delim_.begin(), delim_.end());
+          if (result.first != end && result.second)
+          {
+            // Full match. We're done.
+            search_position_ = result.first - begin + delim_.length();
+            bytes_to_read = 0;
+          }
+
+          // No match yet. Check if buffer is full.
+          else if (buffers_.size() == buffers_.max_size())
+          {
+            search_position_ = not_found;
+            bytes_to_read = 0;
+          }
+
+          // Need to read some more data.
+          else
+          {
+            if (result.first != end)
+            {
+              // Partial match. Next search needs to start from beginning of
+              // match.
+              search_position_ = result.first - begin;
+            }
+            else
+            {
+              // Next search can start with the new data.
+              search_position_ = end - begin;
+            }
+
+            bytes_to_read = std::min<std::size_t>(
+                  std::max<std::size_t>(512,
+                    buffers_.capacity() - buffers_.size()),
+                  std::min<std::size_t>(65536,
+                    buffers_.max_size() - buffers_.size()));
+          }
+        }
+
+        // Check if we're done.
+        if (!start && bytes_to_read == 0)
+          break;
+
+        // Start a new asynchronous read operation to obtain more data. 进行一次新的异步read
+        {
+          ASIO_HANDLER_LOCATION((
+                __FILE__, __LINE__, "async_read_until"));
+          stream_.async_read_some(buffers_.prepare(bytes_to_read),
+              static_cast<read_until_delim_string_op_v1&&>(*this));
+        }
+        return; default:
+        buffers_.commit(bytes_transferred);
+        if (ec || bytes_transferred == 0)
+          break;
+        if (this->cancelled() != cancellation_type::none)
+        {
+          ec = error::operation_aborted;
+          break;
+        }
+      }
+
+      const asio::error_code result_ec =
+        (search_position_ == not_found)
+        ? error::not_found : ec;
+
+      const std::size_t result_n =
+        (ec || search_position_ == not_found)
+        ? 0 : search_position_;
+
+      static_cast<ReadHandler&&>(handler_)(result_ec, result_n);
+    }
+
+    // ...
+  }
+};
+
+
+// asio::async_read 具体实现定义在 read.hpp 中
+template <typename AsyncReadStream, typename DynamicBuffer_v1,
+      typename CompletionCondition, typename ReadHandler>
+class read_dynbuf_v1_op
+  : public base_from_cancellation_state<ReadHandler>,
+    base_from_completion_cond<CompletionCondition>
+{
+
+  // ...
+
+  void operator()(asio::error_code ec,
+      std::size_t bytes_transferred, int start = 0)
+  {
+    std::size_t max_size, bytes_available;
+    switch (start_ = start)
+    {
+      case 1:
+      // 检查是否读取结束
+      max_size = this->check_for_completion(ec, total_transferred_);
+      // 检查buffer的可读空间
+      bytes_available = std::min<std::size_t>(
+            std::max<std::size_t>(512,
+              buffers_.capacity() - buffers_.size()),
+            std::min<std::size_t>(max_size,
+              buffers_.max_size() - buffers_.size()));
+      for (;;)
+      {
+        {
+          ASIO_HANDLER_LOCATION((__FILE__, __LINE__, "async_read"));
+          // 启动异步read
+          stream_.async_read_some(buffers_.prepare(bytes_available),
+              static_cast<read_dynbuf_v1_op&&>(*this));
+        }
+        return; default: // tip: default 可以出现在switch的任何位置，这似乎是一种协程的实现？？？
+        total_transferred_ += bytes_transferred;
+        buffers_.commit(bytes_transferred);
+        max_size = this->check_for_completion(ec, total_transferred_);
+        bytes_available = std::min<std::size_t>(
+              std::max<std::size_t>(512,
+                buffers_.capacity() - buffers_.size()),
+              std::min<std::size_t>(max_size,
+                buffers_.max_size() - buffers_.size()));
+        if ((!ec && bytes_transferred == 0) || bytes_available == 0)
+          break;
+        if (this->cancelled() != cancellation_type::none)
+        {
+          ec = error::operation_aborted;
+          break;
+        }
+      }
+
+      static_cast<ReadHandler&&>(handler_)(
+          static_cast<const asio::error_code&>(ec),
+          static_cast<const std::size_t&>(total_transferred_));
+    }
+  }
+
+  // ...
+};
+
+```
+
 ### strand
 add_compile_definitions(-D ASIO_NO_DEPRECATED) # 禁用asio废弃api
 #### asio::io_context::strand
